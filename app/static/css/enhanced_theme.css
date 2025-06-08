@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRIDeal - Enhanced Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Navigation Sidebar */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, rgba(54, 124, 43, 0.95) 0%, rgba(42, 95, 36, 0.95) 100%);
+            backdrop-filter: blur(15px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .app-header {
+            padding: 30px 25px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+
+        .app-logo {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            border-radius: 15px;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #2a5d24;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-logo::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transform: rotate(45deg);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        }
+
+        .app-title {
+            color: white;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .app-version {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .navigation {
+            flex: 1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 25px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            position: relative;
+            margin: 2px 15px;
+            border-radius: 12px;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(5px);
+            border-left-color: #ffd700;
+        }
+
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border-left-color: #ffd700;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-icon {
+            width: 50px;
+            height: 50px;
+            margin-right: 15px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover .nav-icon {
+            background: rgba(255, 215, 0, 0.2);
+            transform: scale(1.1);
+        }
+
+        .nav-text {
+            font-weight: 500;
+            font-size: 15px;
+        }
+
+        .service-status {
+            padding: 20px 25px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-title {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 10px;
+            box-shadow: 0 0 10px currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online {
+            background: #4ade80;
+            color: #4ade80;
+        }
+
+        .status-offline {
+            background: #f87171;
+            color: #f87171;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px 0 0 20px;
+            margin: 15px 15px 15px 0;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        }
+
+        .content-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .content-title {
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .content-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .content-body {
+            padding: 40px;
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        /* New Deal Form */
+        .deal-form {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .form-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-input {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .item-list {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 15px;
+            min-height: 120px;
+            border: 2px dashed #cbd5e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #718096;
+            font-style: italic;
+        }
+
+        .item-list.has-items {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-style: solid;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+        }
+
+        .list-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .list-item:hover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+
+        .item-details {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .item-meta {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .btn-edit {
+            background: #3182ce;
+            color: white;
+        }
+
+        .btn-delete {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            margin-top: 30px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-large {
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 10px;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ed8936, #dd6b20);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+            }
+            
+            .main-content {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="app-header">
+                <div class="app-logo">BR</div>
+                <div class="app-title">BRIDeal</div>
+                <div class="app-version">Version 2.0.0</div>
+            </div>
+            
+            <div class="navigation">
+                <a href="#" class="nav-item active" data-module="new-deal">
+                    <div class="nav-icon">🔧</div>
+                    <div class="nav-text">New Deal</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="recent-deals">
+                    <div class="nav-icon">🛍️</div>
+                    <div class="nav-text">Recent Deals</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="price-book">
+                    <div class="nav-icon">🎯</div>
+                    <div class="nav-text">Price Book</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="used-inventory">
+                    <div class="nav-icon">✅</div>
+                    <div class="nav-text">Used Inventory</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="receiving">
+                    <div class="nav-icon">🚛</div>
+                    <div class="nav-text">Receiving Automation</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="data-editors">
+                    <div class="nav-icon">📄</div>
+                    <div class="nav-text">Data Editors</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="calculator">
+                    <div class="nav-icon">🧮</div>
+                    <div class="nav-text">Calculator</div>
+                </a>
+                
+                <a href="#" class="nav-item" data-module="jd-quote">
+                    <div class="nav-icon">🌾</div>
+                    <div class="nav-text">JD External Quote</div>
+                </a>
+            </div>
+            
+            <div class="service-status">
+                <div class="status-title">Service Status</div>
+                <div class="status-item">
+                    <span>JD API</span>
+                    <div class="status-indicator status-offline"></div>
+                </div>
+                <div class="status-item">
+                    <span>SharePoint</span>
+                    <div class="status-indicator status-online"></div>
+                </div>
+                <div class="status-item">
+                    <span>Database</span>
+                    <div class="status-indicator status-online"></div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="content-header">
+                <div>
+                    <h1 class="content-title" id="module-title">New Deal</h1>
+                    <p class="content-subtitle" id="module-subtitle">Create and manage new equipment deals</p>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary">
+                        <span>💾</span>
+                        Save Draft
+                    </button>
+                    <button class="btn btn-primary">
+                        <span>📂</span>
+                        Load Draft
+                    </button>
+                </div>
+            </header>
+            
+            <div class="content-body" id="module-content">
+                <!-- New Deal Form -->
+                <div class="deal-form">
+                    <!-- Customer & Salesperson Section -->
+                    <div class="form-section">
+                        <h2 class="section-title">
+                            <div class="section-icon">👤</div>
+                            Customer & Salesperson
+                        </h2>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Customer Name</label>
+                                <input type="text" class="form-input" placeholder="Enter customer name" id="customer-name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Salesperson</label>
+                                <input type="text" class="form-input" placeholder="Enter salesperson name" id="salesperson">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Equipment Section -->
+                    <div class="form-section">
+                        <h2 class="section-title">
+                            <div class="section-icon">⚙️</div>
+                            Equipment
+                        </h2>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Product Name</label>
+                                <input type="text" class="form-input" placeholder="Enter or select product name" id="equipment-name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Product Code</label>
+                                <input type="text" class="form-input" placeholder="Product code" id="equipment-code" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Stock Number</label>
+                                <input type="text" class="form-input" placeholder="Stock number" id="equipment-stock">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Price</label>
+                                <input type="text" class="form-input" placeholder="$0.00" id="equipment-price">
+                            </div>
+                        </div>
+                        <div style="text-align: right; margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="addEquipment()">Add Equipment</button>
+                        </div>
+                        <div class="item-list" id="equipment-list">
+                            No equipment items added yet
+                        </div>
+                    </div>
+
+                    <!-- Trades Section -->
+                    <div class="form-section">
+                        <h2 class="section-title">
+                            <div class="section-icon">🔄</div>
+                            Trades
+                        </h2>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Trade Item Name</label>
+                                <input type="text" class="form-input" placeholder="Trade item name" id="trade-name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Stock Number</label>
+                                <input type="text" class="form-input" placeholder="Optional stock number" id="trade-stock">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount</label>
+                                <input type="text" class="form-input" placeholder="$0.00" id="trade-amount">
+                            </div>
+                        </div>
+                        <div style="text-align: right; margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="addTrade()">Add Trade</button>
+                        </div>
+                        <div class="item-list" id="trade-list">
+                            No trade items added yet
+                        </div>
+                    </div>
+
+                    <!-- Parts Section -->
+                    <div class="form-section">
+                        <h2 class="section-title">
+                            <div class="section-icon">🔩</div>
+                            Parts
+                        </h2>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Quantity</label>
+                                <input type="number" class="form-input" value="1" min="1" id="part-quantity">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Part Number</label>
+                                <input type="text" class="form-input" placeholder="Part number" id="part-number">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Part Name</label>
+                                <input type="text" class="form-input" placeholder="Part name/description" id="part-name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Location</label>
+                                <select class="form-input" id="part-location">
+                                    <option value="">Select location</option>
+                                    <option value="Camrose">Camrose</option>
+                                    <option value="Killam">Killam</option>
+                                    <option value="Wainwright">Wainwright</option>
+                                    <option value="Provost">Provost</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="text-align: right; margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="addPart()">Add Part</button>
+                        </div>
+                        <div class="item-list" id="parts-list">
+                            No parts added yet
+                        </div>
+                    </div>
+
+                    <!-- Notes Section -->
+                    <div class="form-section">
+                        <h2 class="section-title">
+                            <div class="section-icon">📝</div>
+                            Deal Notes
+                        </h2>
+                        <div class="form-group">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-input form-textarea" placeholder="Enter any relevant notes for this deal..." id="deal-notes"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="form-actions">
+                        <button class="btn btn-danger btn-large" onclick="resetForm()">
+                            🗑️ Reset Form
+                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary btn-large" onclick="exportCSV()">
+                                📊 Export CSV
+                            </button>
+                            <button class="btn btn-warning btn-large" onclick="generateEmail()">
+                                📧 Generate Email
+                            </button>
+                            <button class="btn btn-success btn-large" onclick="generateAll()">
+                                ✨ Generate All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Sample data storage
+        let equipmentItems = [];
+        let tradeItems = [];
+        let partItems = [];
+
+        // Navigation handling
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class from all items
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                
+                // Add active class to clicked item
+                this.classList.add('active');
+                
+                // Update content based on module
+                const module = this.dataset.module;
+                updateModuleContent(module);
+            });
+        });
+
+        function updateModuleContent(module) {
+            const titles = {
+                'new-deal': 'New Deal',
+                'recent-deals': 'Recent Deals',
+                'price-book': 'Price Book',
+                'used-inventory': 'Used Inventory',
+                'receiving': 'Receiving Automation',
+                'data-editors': 'Data Editors',
+                'calculator': 'Calculator',
+                'jd-quote': 'JD External Quote'
+            };
+
+            const subtitles = {
+                'new-deal': 'Create and manage new equipment deals',
+                'recent-deals': 'View and manage recent transactions',
+                'price-book': 'Browse product pricing and information',
+                'used-inventory': 'Manage used equipment inventory',
+                'receiving': 'Automate receiving processes',
+                'data-editors': 'Edit and manage data files',
+                'calculator': 'Financial calculations and tools',
+                'jd-quote': 'John Deere external quote management'
+            };
+
+            document.getElementById('module-title').textContent = titles[module] || 'Module';
+            document.getElementById('module-subtitle').textContent = subtitles[module] || 'Module functionality';
+
+            // For now, only show the deal form for the new-deal module
+            if (module !== 'new-deal') {
+                document.getElementById('module-content').innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; color: #718096;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">🚧</div>
+                        <h3 style="margin-bottom: 10px; color: #4a5568;">${titles[module]} Module</h3>
+                        <p>This module is coming soon. Stay tuned for updates!</p>
+                    </div>
+                `;
+            } else {
+                // Restore the deal form (this would typically load from a template)
+                location.reload(); // Simple refresh for demo purposes
+            }
+        }
+
+        // Equipment functions
+        function addEquipment() {
+            const name = document.getElementById('equipment-name').value.trim();
+            const code = document.getElementById('equipment-code').value.trim();
+            const stock = document.getElementById('equipment-stock').value.trim();
+            const price = document.getElementById('equipment-price').value.trim();
+
+            if (!name || !stock) {
+                alert('Please enter equipment name and stock number');
+                return;
+            }
+
+            const equipment = {
+                id: Date.now(),
+                name,
+                code,
+                stock,
+                price: price || '$0.00'
+            };
+
+            equipmentItems.push(equipment);
+            updateEquipmentList();
+            clearEquipmentForm();
+        }
+
+        function updateEquipmentList() {
+            const list = document.getElementById('equipment-list');
+            
+            if (equipmentItems.length === 0) {
+                list.innerHTML = 'No equipment items added yet';
+                list.classList.remove('has-items');
+                return;
+            }
+
+            list.classList.add('has-items');
+            list.innerHTML = equipmentItems.map(item => `
+                <div class="list-item">
+                    <div class="item-details">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-meta">Stock: ${item.stock} | Code: ${item.code || 'N/A'} | Price: ${item.price}</div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-edit btn-small" onclick="editEquipment(${item.id})">Edit</button>
+                        <button class="btn btn-delete btn-small" onclick="deleteEquipment(${item.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearEquipmentForm() {
+            document.getElementById('equipment-name').value = '';
+            document.getElementById('equipment-code').value = '';
+            document.getElementById('equipment-stock').value = '';
+            document.getElementById('equipment-price').value = '';
+        }
+
+        function deleteEquipment(id) {
+            if (confirm('Are you sure you want to delete this equipment item?')) {
+                equipmentItems = equipmentItems.filter(item => item.id !== id);
+                updateEquipmentList();
+            }
+        }
+
+        // Trade functions
+        function addTrade() {
+            const name = document.getElementById('trade-name').value.trim();
+            const stock = document.getElementById('trade-stock').value.trim();
+            const amount = document.getElementById('trade-amount').value.trim();
+
+            if (!name) {
+                alert('Please enter trade item name');
+                return;
+            }
+
+            const trade = {
+                id: Date.now(),
+                name,
+                stock,
+                amount: amount || '$0.00'
+            };
+
+            tradeItems.push(trade);
+            updateTradeList();
+            clearTradeForm();
+        }
+
+        function updateTradeList() {
+            const list = document.getElementById('trade-list');
+            
+            if (tradeItems.length === 0) {
+                list.innerHTML = 'No trade items added yet';
+                list.classList.remove('has-items');
+                return;
+            }
+
+            list.classList.add('has-items');
+            list.innerHTML = tradeItems.map(item => `
+                <div class="list-item">
+                    <div class="item-details">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-meta">Stock: ${item.stock || 'N/A'} | Amount: ${item.amount}</div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-edit btn-small" onclick="editTrade(${item.id})">Edit</button>
+                        <button class="btn btn-delete btn-small" onclick="deleteTrade(${item.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearTradeForm() {
+            document.getElementById('trade-name').value = '';
+            document.getElementById('trade-stock').value = '';
+            document.getElementById('trade-amount').value = '';
+        }
+
+        function deleteTrade(id) {
+            if (confirm('Are you sure you want to delete this trade item?')) {
+                tradeItems = tradeItems.filter(item => item.id !== id);
+                updateTradeList();
+            }
+        }
+
+        // Parts functions
+        function addPart() {
+            const quantity = document.getElementById('part-quantity').value;
+            const number = document.getElementById('part-number').value.trim();
+            const name = document.getElementById('part-name').value.trim();
+            const location = document.getElementById('part-location').value;
+
+            if (!number && !name) {
+                alert('Please enter part number or part name');
+                return;
+            }
+
+            const part = {
+                id: Date.now(),
+                quantity: parseInt(quantity),
+                number,
+                name,
+                location
+            };
+
+            partItems.push(part);
+            updatePartsList();
+            clearPartsForm();
+        }
+
+        function updatePartsList() {
+            const list = document.getElementById('parts-list');
+            
+            if (partItems.length === 0) {
+                list.innerHTML = 'No parts added yet';
+                list.classList.remove('has-items');
+                return;
+            }
+
+            list.classList.add('has-items');
+            list.innerHTML = partItems.map(item => `
+                <div class="list-item">
+                    <div class="item-details">
+                        <div class="item-name">${item.quantity}x ${item.name || item.number}</div>
+                        <div class="item-meta">Part #: ${item.number || 'N/A'} | Location: ${item.location || 'N/A'}</div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-edit btn-small" onclick="editPart(${item.id})">Edit</button>
+                        <button class="btn btn-delete btn-small" onclick="deletePart(${item.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearPartsForm() {
+            document.getElementById('part-quantity').value = '1';
+            document.getElementById('part-number').value = '';
+            document.getElementById('part-name').value = '';
+            document.getElementById('part-location').value = '';
+        }
+
+        function deletePart(id) {
+            if (confirm('Are you sure you want to delete this part?')) {
+                partItems = partItems.filter(item => item.id !== id);
+                updatePartsList();
+            }
+        }
+
+        // Form actions
+        function resetForm() {
+            if (confirm('Are you sure you want to reset the form? All unsaved data will be lost.')) {
+                document.getElementById('customer-name').value = '';
+                document.getElementById('salesperson').value = '';
+                document.getElementById('deal-notes').value = '';
+                
+                equipmentItems = [];
+                tradeItems = [];
+                partItems = [];
+                
+                updateEquipmentList();
+                updateTradeList();
+                updatePartsList();
+                
+                clearEquipmentForm();
+                clearTradeForm();
+                clearPartsForm();
+            }
+        }
+
+        function exportCSV() {
+            if (!validateForm()) return;
+            
+            // Simulate CSV export
+            alert('CSV export functionality would be implemented here. The form data would be converted to CSV format and downloaded.');
+        }
+
+        function generateEmail() {
+            if (!validateForm()) return;
+            
+            // Simulate email generation
+            alert('Email generation functionality would be implemented here. An email template would be created with the deal information.');
+        }
+
+        function generateAll() {
+            if (!validateForm()) return;
+            
+            // Simulate generating both CSV and email
+            alert('Generate All functionality would export CSV and create email template simultaneously.');
+        }
+
+        function validateForm() {
+            const customerName = document.getElementById('customer-name').value.trim();
+            const salesperson = document.getElementById('salesperson').value.trim();
+            
+            if (!customerName) {
+                alert('Please enter a customer name');
+                document.getElementById('customer-name').focus();
+                return false;
+            }
+            
+            if (!salesperson) {
+                alert('Please enter a salesperson name');
+                document.getElementById('salesperson').focus();
+                return false;
+            }
+            
+            if (equipmentItems.length === 0 && tradeItems.length === 0 && partItems.length === 0) {
+                alert('Please add at least one equipment, trade, or part item');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Add some interactive polish
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add animation to navigation items
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach((item, index) => {
+                item.style.animationDelay = `${index * 0.1}s`;
+                item.classList.add('animate-in');
+            });
+
+            // Auto-format price inputs
+            const priceInputs = document.querySelectorAll('#equipment-price, #trade-amount');
+            priceInputs.forEach(input => {
+                input.addEventListener('blur', function() {
+                    let value = this.value.replace(/[^0-9.]/g, '');
+                    if (value && !isNaN(value)) {
+                        this.value = `$${parseFloat(value).toFixed(2)}`;
+                    }
+                });
+            });
+        });
+
+        // Add CSS animation classes
+        const style = document.createElement('style');
+        style.textContent = `
+            .animate-in {
+                animation: slideInLeft 0.6s ease-out forwards;
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            
+            @keyframes slideInLeft {
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
