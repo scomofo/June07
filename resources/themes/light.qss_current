@@ -1,0 +1,177 @@
+/* Converted QSS from style.css */
+
+.DevBreadcrumb {
+    text-align: left;
+    background-color: #fff;
+}
+
+.Breadcrumb {
+    padding-left: 2.7%;
+    padding-top: .8%;
+    padding-bottom: 1%;
+}
+
+.code-front {
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.main-grid {
+    margin: auto;
+    max-width: 1440px;
+}
+
+.delete-badges, .get-badges, .post-badges, .put-badges, .other-badges {
+    border-radius: 30px;
+    height: 24px;
+    font-weight: 400;
+}
+
+.delete-badges { width: 58px; }
+.get-badges { width: 39px; }
+.post-badges { width: 46px; }
+.put-badges { width: 39px; }
+.other-badges { min-width: 54px; }
+
+.FuelBadge-label {
+    font-family: "Open Sans";
+    font-size: 12px;
+}
+
+.top-space {
+    padding-top: 2%;
+}
+
+.divider {
+    border: 0.5px solid #ccc;
+    margin: 30px 0;
+}
+
+.spacing {
+    margin-left: 8px;
+}
+
+.content {
+    padding-left: 3%;
+}
+
+.json-block {
+    background-color: #ddd;
+    margin: 1%;
+    padding: 1%;
+    overflow: auto;
+}
+
+.sample-request-response-block {
+    font-size: 0.8rem;
+}
+
+.equipment-image {
+    margin-top: 2%;
+}
+
+.work-plan {
+    text-align: center;
+    box-sizing: content-box;
+}
+
+.parameter-required {
+    color: #c21020;
+    font-size: 12px;
+}
+
+.green-font {
+    color: #367c2b;
+}
+
+.table-example {
+    color: #767676;
+}
+
+.table-break-word {
+    word-break: break-word;
+}
+
+.table-in {
+    color: #666;
+}
+
+.page-api-heading {
+    color: #000;
+    margin-left: 1.7%;
+    font-size: 20px;
+    font-weight: 600;
+    font-family: "JDSansPro-Bold";
+}
+
+.doc-content {
+    padding-left: 1.7%;
+}
+
+.page-heading, .page-subheading, .page-sub, .page-larger, .step-subheading {
+    font-family: "Open Sans";
+    font-weight: 600;
+    color: #333;
+}
+
+.page-heading {
+    font-size: 20px;
+    line-height: 28px;
+}
+
+.page-subheading, .page-larger {
+    font-size: 18px;
+}
+
+.page-sub {
+    font-size: 16px;
+}
+
+.step-subheading {
+    font-weight: 500;
+    font-size: 18px;
+}
+
+.points {
+    font-family: "JDSansPro-Bold";
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 28px;
+    color: #000;
+    margin-left: 2%;
+}
+
+.code-path, .code-font, .code-blur {
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.code-path { color: #000; padding-left: 2%; }
+.code-font { color: #333; }
+.code-blur { color: #767676; }
+
+.size-greater {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.offline-page {
+    padding-left: 5%;
+    padding-right: 5%;
+    color: #333;
+}
+
+.sdk-header {
+    color: #333;
+    font-size: 24px;
+    margin-top: 2%;
+    font-weight: 600;
+}
+
+.second-button {
+    margin-left: 1%;
+}
+
+code {
+    color: #367c2b;
+}

@@ -1,0 +1,331 @@
+/* Foundational Styles for BRIDeal - default_light.qss */
+
+/* Global Application Styles */
+QWidget {
+    font-family: "Segoe UI", Arial, "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 10pt; /* Base font size */
+    color: #212529; /* @textColorPrimary */
+    background-color: #ffffff; /* @backgroundColor */
+}
+
+/* Headings (Conceptual - applied to QLabels often used as headings) */
+/* Users can apply these styles using objectName or dynamic properties if needed */
+QLabel#H1, .H1Label { /* Example for H1, assuming objectName or custom property */
+    font-size: 16pt;
+    font-weight: bold;
+    color: #2c3e50; /* A slightly richer dark blue/gray for headings */
+}
+
+QLabel#H2, .H2Label {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+QLabel#H3, .H3Label { /* Good for GroupBox titles too */
+    font-size: 12pt;
+    font-weight: bold;
+    color: #343a40;
+}
+
+QLabel#H4, .H4Label {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #495057;
+}
+
+/* Common Widgets Styling */
+
+QLabel {
+    background-color: transparent; /* Ensure labels don't have unexpected backgrounds */
+    padding: 2px 0px;
+    margin-bottom: 2px;
+}
+
+QPushButton {
+    background-color: #007bff; /* @primaryColor */
+    color: white;
+    border: 1px solid #007bff; /* @primaryColor */
+    padding: 8px 12px; /* Vertical and horizontal padding */
+    border-radius: 4px; /* @borderRadius */
+    font-weight: bold;
+    margin-left: 4px;
+    margin-right: 4px;
+}
+
+QPushButton:hover {
+    background-color: #0056b3; /* @hoverColor (darker primary) */
+    border-color: #0056b3;
+}
+
+QPushButton:pressed {
+    background-color: #004085; /* Even darker primary */
+    border-color: #00376e;
+}
+
+QPushButton:disabled {
+    background-color: #6c757d; /* @secondaryColor */
+    color: #e9ecef;
+    border-color: #6c757d;
+}
+
+QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #ffffff; /* @backgroundColor */
+    color: #212529; /* @textColorPrimary */
+    border: 1px solid #dee2e6; /* @borderColor */
+    border-radius: 4px; /* @borderRadius */
+    padding: 6px 8px; /* Adjusted padding for input fields */
+    font-size: 10pt;
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: #80bdff; /* @focusBorderColor (light blue) */
+    /* box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);  QSS doesn't support box-shadow well */
+}
+
+QTextEdit {
+    selection-background-color: #007bff;
+    selection-color: white;
+}
+
+QGroupBox {
+    font-size: 12pt;
+    font-weight: bold;
+    color: #343a40;
+    background-color: #ffffff; /* Card background */
+    border: 1px solid #e0e0e0; /* Softer border for card */
+    border-radius: 12px;       /* Card border radius */
+    margin: 12px;              /* Spacing around the card */
+    padding-top: 30px;         /* Top padding for content, allowing space for title */
+    padding-right: 16px;       /* Internal padding */
+    padding-bottom: 16px;      /* Internal padding */
+    padding-left: 16px;        /* Internal padding */
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0px 8px;      /* Padding for the title text (top/bottom 0 for default vertical alignment, left/right 8) */
+    position: relative;    /* Needed for 'top' and 'left' to work reliably */
+    top: 8px;              /* Pixels from the top of the QGroupBox margin box to the top of the title's box */
+    left: 12px;            /* Pixels from the left of the QGroupBox margin box to the left of the title's box */
+    /* background-color: transparent; /* Optional: if title needs transparent background */
+}
+
+QTableWidget {
+    gridline-color: #dee2e6; /* @borderColor */
+    background-color: #ffffff; /* @backgroundColor */
+    alternate-background-color: #f8f9fa; /* @surfaceColor */
+    selection-background-color: #007bff; /* @primaryColor */
+    selection-color: white;
+    border: 1px solid #ced4da; /* Slightly darker border for table itself */
+    border-radius: 4px;
+}
+
+QTableWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #e9ecef; /* Lighter border for internal cells */
+}
+
+QHeaderView::section {
+    background-color: #e9ecef; /* Light gray for headers */
+    color: #212529; /* @textColorPrimary */
+    padding: 8px;
+    border: 1px solid #dee2e6; /* @borderColor */
+    font-size: 10pt;
+    font-weight: bold;
+}
+
+QHeaderView::section:horizontal {
+    border-top: none;
+    border-left: none;
+}
+QHeaderView::section:horizontal:first {
+    border-left: 1px solid #dee2e6; /* Add left border for the first header */
+}
+QHeaderView::section:vertical {
+    border-top: none;
+    border-right: none;
+}
+QHeaderView::section:vertical:first {
+    border-top: 1px solid #dee2e6; /* Add top border for the first vertical header */
+}
+
+
+/* Scrollbars - Basic Styling for consistency */
+QScrollBar:horizontal {
+    border: 1px solid #ced4da;
+    background: #f8f9fa;
+    height: 12px;
+    margin: 0px 12px 0 12px;
+}
+QScrollBar::handle:horizontal {
+    background: #adb5bd;
+    min-width: 20px;
+    border-radius: 6px;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    border: none;
+    background: none;
+    width: 12px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+QScrollBar:vertical {
+    border: 1px solid #ced4da;
+    background: #f8f9fa;
+    width: 12px;
+    margin: 12px 0 12px 0;
+}
+QScrollBar::handle:vertical {
+    background: #adb5bd;
+    min-height: 20px;
+    border-radius: 6px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+    height: 12px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* Tooltip Styling */
+QToolTip {
+    border: 1px solid #6c757d; /* @secondaryColor */
+    padding: 5px;
+    border-radius: 4px;
+    background-color: #ffffff; /* @backgroundColor */
+    color: #212529; /* @textColorPrimary */
+    opacity: 230; /* Slightly transparent */
+}
+
+/* Placeholder text color for QLineEdit etc. */
+QLineEdit[placeholderText], QTextEdit[placeholderText] {
+    color: #6c757d; /* @textColorSecondary */
+}
+/* Note: Actual placeholder text color might need specific widget properties in code or more complex QSS if direct QSS selectors are limited */
+
+QListWidget {
+    margin-top: 8px;
+    border: 1px solid #dee2e6; /* Consistent with other input fields */
+    border-radius: 4px;
+    padding: 4px;
+    background-color: #ffffff;
+}
+
+QListWidget::item {
+    padding: 5px;
+}
+
+QListWidget::item:selected {
+    background-color: #007bff; /* @primaryColor */
+    color: white;
+}
+
+QListWidget::item:hover {
+    background-color: #e9ecef; /* Light hover */
+}
+
+QLineEdit::clear-button {
+    /* Attempt to use a standard-looking system icon if possible, though paths are tricky */
+    /* image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-clear-16.png); */
+    background-color: #cccccc;
+    border: 1px solid #aaaaaa;
+    border-radius: 7px; /* Make it roundish */
+    padding: 1px;
+    margin: 2px 4px 2px 2px; /* top, right, bottom, left */
+    height: 14px; /* Approximate size */
+    width: 14px;  /* Approximate size */
+}
+QLineEdit::clear-button:hover {
+    background-color: #bbbbbb;
+}
+QLineEdit::clear-button:pressed {
+    background-color: #aaaaaa;
+}
+
+/* HomePageDashboardView Card Styling */
+QFrame#DashboardSectionFrame {
+    background-color: #ffffff;       /* White background for the card */
+    border: 1px solid #e0e0e0;       /* Softer border */
+    border-radius: 12px;             /* Rounded corners */
+    margin: 0px;                     /* Margins are handled by the parent QGridLayout's spacing */
+    padding: 18px;                   /* Uniform padding inside the card */
+}
+
+/* Styling for titles within dashboard cards (assumed to be the first QLabel child of the frame) */
+QFrame#DashboardSectionFrame > QLabel:first-child {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #2c3e50;                  /* Dark blue/gray for section titles */
+    padding-bottom: 10px;            /* Space below the title */
+    /* For text alignment, use label.setAlignment(Qt.AlignmentFlag.AlignCenter) in Python code */
+}
+
+/* Styling for general data labels within dashboard cards */
+/* This ensures consistency if not overridden by more specific label styles */
+QFrame#DashboardSectionFrame QLabel {
+    font-size: 10pt; /* Standard body text size from foundational styles */
+    color: #212529;  /* Primary text color from foundational styles */
+    background-color: transparent; /* Ensure no unexpected background from parent card */
+}
+
+/* BaseViewModule Styling */
+QFrame#BaseViewModule_Header {
+    background-color: #e9ecef; /* Light grey, distinct from page background */
+    border-bottom: 1px solid #ced4da; /* Separator line */
+    padding: 8px 12px;
+    min-height: 28px; /* Adjusted min-height */
+}
+
+/* Styles for QLabels directly within the BaseViewModule_Header (e.g., the module title) */
+QFrame#BaseViewModule_Header > QLabel {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #2c3e50;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Styles for other QLabels that might be added by derived classes into the header layout */
+/* For example, DealFormView's sp_status_label_ui */
+QFrame#BaseViewModule_Header QLabel {
+    font-size: 10pt; /* Default to smaller size if not the main title */
+    font-weight: normal;
+    color: #495057;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* Re-apply title style specifically if it has an objectName or use the direct child selector for the main title */
+/* BaseViewModule._init_base_ui sets font for self.module_title_label in Python. */
+/* The QFrame#BaseViewModule_Header > QLabel selector above should target it. */
+
+
+QFrame#BaseViewModule_Footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 6px 12px;
+    min-height: 20px;
+    max-height: 30px; /* Ensure footer doesn't get too large */
+}
+
+/* Styles for QLabels directly within the BaseViewModule_Footer (e.g., self.status_label_base) */
+QFrame#BaseViewModule_Footer > QLabel {
+    font-size: 9pt;
+    color: #6c757d;
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
