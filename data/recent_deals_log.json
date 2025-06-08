@@ -1,0 +1,42 @@
+[
+    {
+        "timestamp": "2025-05-22T16:53:00.946659",
+        "customer_name": "CORBIN LOESCH",
+        "salesperson": "Darcy Gunderson",
+        "equipment": [
+            "\"JDLINK R MODEM 4G\" STK#C018329 $450.00"
+        ],
+        "trades": [],
+        "parts": [
+            "1x PFP16073 - (Description not specified) | Loc: Killam | Charge to: C018329"
+        ],
+        "work_order_required": false,
+        "work_order_charge_to": "",
+        "work_order_hours": "",
+        "multi_line_csv": false,
+        "paid": false,
+        "part_location_index": 0,
+        "last_charge_to": "C018329",
+        "deal_notes": ""
+    },
+    {
+        "timestamp": "2025-05-22T16:50:29.573881",
+        "customer_name": "CORBIN LOESCH",
+        "salesperson": "Darcy Gunderson",
+        "equipment": [
+            "\"JDLINK R MODEM 4G\" STK#C018329 $450.00"
+        ],
+        "trades": [],
+        "parts": [
+            "1x PFP16073 - (Description not specified) | Loc: Killam | Charge to: C018329"
+        ],
+        "work_order_required": false,
+        "work_order_charge_to": "",
+        "work_order_hours": "",
+        "multi_line_csv": false,
+        "paid": false,
+        "part_location_index": 0,
+        "last_charge_to": "C018329",
+        "deal_notes": ""
+    }
+]

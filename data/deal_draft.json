@@ -1,0 +1,17 @@
+{
+    "timestamp": "2025-05-09T11:11:24.198529",
+    "customer_name": "RNB POULTRY INC",
+    "salesperson": "Scott Morley",
+    "equipment": [
+        "\"Starfire 3000 Receiver\" (Code: 0907PC) STK#C018232 $3,000.00"
+    ],
+    "trades": [],
+    "parts": [],
+    "work_order_required": false,
+    "work_order_charge_to": "",
+    "work_order_hours": "",
+    "multi_line_csv": false,
+    "paid": false,
+    "part_location_index": 0,
+    "last_charge_to": "C018232"
+}

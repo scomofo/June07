@@ -1,0 +1,20 @@
+[
+    {
+        "timestamp": "2025-05-16T18:45:19.476680",
+        "customer_name": "JOEL DUGGAN ENTERPRISES LTD.",
+        "salesperson": "Brad Olsen",
+        "equipment": [
+            "\"4640 Prem. Sub\" (Code: ) STK#c018293 Order#4095468 $1,200.00"
+        ],
+        "trades": [],
+        "parts": [],
+        "work_order_required": false,
+        "work_order_charge_to": "",
+        "work_order_hours": "",
+        "multi_line_csv": false,
+        "paid": false,
+        "part_location_index": 0,
+        "last_charge_to": "",
+        "deal_notes": ""
+    }
+]
