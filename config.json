@@ -1,0 +1,40 @@
+{
+    "api_timeout": 15,
+    "ui_theme": "light",
+    "enable_high_dpi": true,
+    "log_level": "INFO",
+    "splash_image": "splash.png",
+    "app_icon": "app_icon.png",
+    "app_title": "BRIDeal",
+    "window_width":450,
+    "window_height": 800,
+    "toolbar_icon_size":60,
+    "MAX_MAILTO_URL_LENGTH": 2000, 
+    "window_geometry": {
+        "width": 900,
+        "height": 810
+    },
+    "last_module": "Used Inventory",
+    "show_splash_screen": true,
+    "jd_auth": {
+        "remember_credentials": true
+    },
+    "sharepoint": {
+        "auto_sync": true,
+        "sync_interval_minutes": 60,
+        "enabled": true
+    },
+    "DATA_PATH": "data",
+    "CACHE_DIR": "C:\Users\Scott Morley\Dev\brideal_refactored\cache/",
+    "logging": {
+        "level": "INFO",
+        "max_file_size_mb": 5,
+        "backup_count": 3
+    },
+    "EMAIL_FIXED_RECIPIENTS": ["AMS Group"],
+    "EMAIL_PARTS_RECIPIENT": ["AMS Parts"],
+    "DEFAULT_FALLBACK_EMAIL": "",
+    "DASHBOARD_REFRESH_INTERVAL_MS": 3600000,
+    "OPENWEATHERMAP_API_KEY": "92c14d7df751ef55dfd97364024f6319",
+    "EXCHANGERATE_API_KEY": "0095107b1ed05a6305f2d932"
+}

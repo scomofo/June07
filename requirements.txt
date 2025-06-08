@@ -1,0 +1,12 @@
+# Updated requirements.txt
+PyQt5>=5.15.0
+PyQtWebEngine>=5.15.0
+requests>=2.25.0
+python-dotenv>=0.15.0
+msal>=1.12.0
+pandas>=1.2.0
+openpyxl>=3.0.5
+pyperclip>=1.8.2
+pyautogui>=0.9.52
+httpx
+reportlab

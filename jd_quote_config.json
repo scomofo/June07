@@ -1,0 +1,9 @@
+{
+    "jd_client_id": "0oao5jntk71YDUX9Q5d7",
+    "jd_client_secret": "ktdM8YGvalnKpzriyn4zaZioIInMpsGaiy4oN0H3gPDMQhJvKtTBpfsElA1zyCUu",
+    "jd": {
+        "quote_api_base_url": "https://jdquote2-api.deere.com/om/quotedata",
+        "dealer_account_number": "731804",
+        "dealer_id": "x950700"
+    }
+}
