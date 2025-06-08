@@ -44,7 +44,6 @@ class CsvEditorBase(BaseViewModule):
                  logger_instance: Optional[logging.Logger] = None, 
                  main_window: Optional[QWidget] = None, 
                  parent: Optional[QWidget] = None):
-        print("DEBUG: Entering CsvEditorBase.__init__")
         super().__init__(
             module_name=module_name,
             config=config,
@@ -52,7 +51,6 @@ class CsvEditorBase(BaseViewModule):
             main_window=main_window,
             parent=parent
         )
-        print("DEBUG: In CsvEditorBase.__init__ - AFTER super().__init__")
         
         self.csv_file_path: str = csv_file_path
         self.sharepoint_file_url: Optional[str] = None
@@ -87,11 +85,8 @@ class CsvEditorBase(BaseViewModule):
             self.sharepoint_manager = None
             self.enhanced_sharepoint_manager = None
 
-        print("DEBUG: In CsvEditorBase.__init__ - BEFORE self._set_sharepoint_url()")
         self._set_sharepoint_url()
-        print("DEBUG: In CsvEditorBase.__init__ - BEFORE self._init_ui()")
         self._init_ui()
-        print("DEBUG: In CsvEditorBase.__init__ - BEFORE self.load_csv_data()")
         self.load_csv_data()
     
     def _set_sharepoint_url(self):

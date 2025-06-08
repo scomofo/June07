@@ -139,6 +139,10 @@ class BRIDealConfig(BaseSettings):
     api_retry_attempts: int = Field(default=3, ge=0, le=10, description="API retry attempts")
     api_retry_delay: float = Field(default=1.0, ge=0.1, le=10.0, description="API retry delay in seconds")
     
+    # External Service API Keys
+    OPENWEATHERMAP_API_KEY: Optional[str] = Field(default=None, description="API key for OpenWeatherMap service")
+    EXCHANGERATE_API_KEY: Optional[str] = Field(default=None, description="API key for ExchangeRate-API service")
+
     # Cache Configuration
     cache_enabled: bool = Field(default=True, description="Enable caching")
     cache_ttl: int = Field(default=3600, ge=60, description="Cache TTL in seconds")
@@ -363,7 +367,7 @@ class BRIDealConfig(BaseSettings):
             # Remove sensitive information
             sensitive_keys = [
                 'jd_client_secret', 'sharepoint_client_secret', 
-                'encryption_key', 'database_url'
+                'encryption_key', 'database_url', 'OPENWEATHERMAP_API_KEY', 'EXCHANGERATE_API_KEY'
             ]
             for key in sensitive_keys:
                 if key in config_dict:

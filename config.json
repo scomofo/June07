@@ -25,7 +25,7 @@
         "enabled": true
     },
     "DATA_PATH": "data",
-    "CACHE_DIR": "C:\Users\Scott Morley\Dev\brideal_refactored\cache/",
+    "CACHE_DIR": "cache",
     "logging": {
         "level": "INFO",
         "max_file_size_mb": 5,

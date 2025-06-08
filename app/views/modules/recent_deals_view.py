@@ -76,7 +76,7 @@ class RecentDealsView(BaseViewModule):
 
     def _init_ui(self):
         """Initialize the enhanced user interface"""
-        main_layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout()
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
 

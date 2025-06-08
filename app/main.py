@@ -460,6 +460,9 @@ class MainWindow(QMainWindow):
                        actual_display_name = getattr(module_widget, 'MODULE_DISPLAY_NAME', display_name)
                        loaded_modules += 1
                        expected_icon_name = f"{module_key}_icon.png" 
+                       # Add this condition:
+                       if module_key == "app_settings":
+                           expected_icon_name = "settings_icon.png"
                        self._add_module_to_stack(actual_display_name, module_widget, icon_name=expected_icon_name) # Pass it
 
                    else:
