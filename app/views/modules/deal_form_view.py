@@ -588,13 +588,13 @@ class DealFormView(QWidget):
         self.load_draft_btn = QPushButton("Load Draft"); self.load_draft_btn.clicked.connect(self.load_draft)
         main_actions_layout.addWidget(self.load_draft_btn)
         main_actions_layout.addSpacing(20)
-        
+
         self.log_to_sharepoint_btn = QPushButton("Log to SharePoint") # New Button
         self.log_to_sharepoint_btn.clicked.connect(self.log_deal_to_sharepoint) # New Connection
         main_actions_layout.addWidget(self.log_to_sharepoint_btn) # New Button Added
 
         self.generate_email_btn = QPushButton("Generate Email")
-        self.generate_email_btn.clicked.connect(self.generate_email) 
+        self.generate_email_btn.clicked.connect(self.generate_email)
         main_actions_layout.addWidget(self.generate_email_btn)
         self.generate_both_btn = QPushButton("Generate All")
         self.generate_both_btn.clicked.connect(self.generate_csv_and_email) # This will be modified
@@ -821,8 +821,25 @@ class DealFormView(QWidget):
         if hasattr(self, 'part_number'): self.part_number.clear()
         if hasattr(self, 'part_name'): self.part_name.clear()
         if hasattr(self, 'part_quantity'): self.part_quantity.setValue(1)
-        if hasattr(self, 'part_location'): self.part_location.setCurrentIndex(0)
-        if hasattr(self, 'part_charge_to'): self.part_charge_to.setText(self.last_charge_to or "")
+
+        if hasattr(self, 'part_location'):
+            killam_index = self.part_location.findText("Killam", Qt.MatchFlag.MatchFixedString)
+            if killam_index >= 0:
+                self.part_location.setCurrentIndex(killam_index)
+            else:
+                self.logger.warning("Could not find 'Killam' in part_location combobox. Defaulting to index 0.")
+                self.part_location.setCurrentIndex(0)
+
+        default_charge_to = ""
+        if hasattr(self, 'equipment_list') and self.equipment_list.count() > 0:
+            first_equipment_text = self.equipment_list.item(0).text()
+            match = re.search(r'STK#([\w-]+)', first_equipment_text)
+            if match and match.group(1):
+                default_charge_to = match.group(1)
+
+        if hasattr(self, 'part_charge_to'):
+            self.part_charge_to.setText(default_charge_to)
+        self.last_charge_to = default_charge_to
 
     def on_customer_field_changed(self):
         try:
@@ -1063,24 +1080,24 @@ class DealFormView(QWidget):
             self._show_status_message("Error: SharePoint service unavailable.", 5000)
             return False
 
-        if not self.validate_form_for_csv(): 
+        if not self.validate_form_for_csv():
             self._show_status_message("Log to SharePoint cancelled: Validation failed.", 3000)
             return False
 
         customer_name = self.customer_name.text().strip()
         salesperson = self.salesperson.text().strip()
         payment_status = "YES" if self.paid_checkbox.isChecked() else "NO"
-        deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid" 
-        email_date = datetime.now().strftime("%Y-%m-%d") 
+        deal_status = "Paid" if self.paid_checkbox.isChecked() else "Not Paid"
+        email_date = datetime.now().strftime("%Y-%m-%d")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        row_id_base = str(uuid.uuid4()) 
+        row_id_base = str(uuid.uuid4())
 
         rows_to_upload = []
-        item_counter = 0 
+        item_counter = 0
 
         excel_headers = [
-            'Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount', 
-            'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2', 
+            'Payment', 'CustomerName', 'Equipment', 'Stock Number', 'Amount',
+            'Trade', 'Attached to stk#', 'Trade STK#', 'Amount2',
             'Salesperson', 'Email Date', 'Status', 'Timestamp', 'Row ID'
         ]
 
@@ -1110,20 +1127,20 @@ class DealFormView(QWidget):
             trade_price = price_match.group(1).replace(',', '') if price_match else "0.00"
             item_counter += 1
             rows_to_upload.append({
-                'Payment': payment_status, 'CustomerName': customer_name, 'Equipment': '', 
-                'Stock Number': '', 'Amount': '', 'Trade': trade_name, 'Attached to stk#': '', 
-                'Trade STK#': trade_stk, 'Amount2': trade_price, 'Salesperson': salesperson, 
-                'Email Date': email_date, 'Status': deal_status, 'Timestamp': timestamp, 
+                'Payment': payment_status, 'CustomerName': customer_name, 'Equipment': '',
+                'Stock Number': '', 'Amount': '', 'Trade': trade_name, 'Attached to stk#': '',
+                'Trade STK#': trade_stk, 'Amount2': trade_price, 'Salesperson': salesperson,
+                'Email Date': email_date, 'Status': deal_status, 'Timestamp': timestamp,
                 'Row ID': f"{row_id_base}-{item_counter}"
             })
-        
+
         if not rows_to_upload and (customer_name or salesperson):
             self.logger.info("No equipment or trade items, but customer/salesperson info present. Logging a base deal row.")
             item_counter += 1
             rows_to_upload.append({
-                'Payment': payment_status, 'CustomerName': customer_name, 'Equipment': '', 'Stock Number': '', 
+                'Payment': payment_status, 'CustomerName': customer_name, 'Equipment': '', 'Stock Number': '',
                 'Amount': '', 'Trade': '', 'Attached to stk#': '', 'Trade STK#': '', 'Amount2': '',
-                'Salesperson': salesperson, 'Email Date': email_date, 'Status': deal_status, 
+                'Salesperson': salesperson, 'Email Date': email_date, 'Status': deal_status,
                 'Timestamp': timestamp, 'Row ID': f"{row_id_base}-{item_counter}"
             })
 
@@ -1134,15 +1151,15 @@ class DealFormView(QWidget):
         try:
             self.logger.info(f"Preparing to upload {len(rows_to_upload)} row(s) to SharePoint sheet 'App'.")
             success = self.sharepoint_manager_enhanced.update_excel_data(
-                new_data=rows_to_upload, 
-                target_sheet_name_for_append="App" 
+                new_data=rows_to_upload,
+                target_sheet_name_for_append="App"
             )
             if success:
                 self.logger.info("Successfully logged deal to SharePoint Excel.")
                 self._show_status_message("Deal logged to SharePoint successfully!", 5000)
-                _save_deal_to_recent_enhanced(self._get_current_deal_data(), 
+                _save_deal_to_recent_enhanced(self._get_current_deal_data(),
                                               csv_generated=True, # Using csv_generated as a proxy for "logged to SP"
-                                              email_generated=False, 
+                                              email_generated=False,
                                               data_path=self._data_path, config=self.config, logger_instance=self.logger)
                 return True
             else:
@@ -1156,8 +1173,8 @@ class DealFormView(QWidget):
             self._show_status_message("Error: Unexpected issue logging to SharePoint.", 5000)
             return False
 
-    def generate_email(self): 
-        self.logger.info("Starting email generation via SharePoint service...") 
+    def generate_email(self):
+        self.logger.info("Starting email generation via SharePoint service...")
         self._show_status_message("Generating email...", 2000)
         if not self.sharepoint_manager_enhanced:
             QMessageBox.critical(self, "Configuration Error", "SharePoint manager is not initialized. Cannot send email.")
@@ -1183,48 +1200,151 @@ class DealFormView(QWidget):
                 else: self.logger.warning(f"No email key found for salesman '{salesman_name}' in data: {list(salesman_info.keys())}")
             else: self.logger.warning(f"Salesman '{salesman_name}' not found in salesmen_data.")
         else: self.logger.warning("Salesperson name is empty, cannot retrieve their email.")
-        default_recipient = "amsdeals@briltd.com" 
+        default_recipient = "amsdeals@briltd.com"
         recipients = [default_recipient]
         if salesman_email:
             if "@" in salesman_email and "." in salesman_email.split('@')[-1]: recipients.append(salesman_email)
             else: self.logger.warning(f"Invalid salesman email format: '{salesman_email}'. Not adding to recipients.")
-        subject = f"New Deal Created for {customer_name_text}"
-        html_body_parts = [f"<h1>New Deal Created</h1>", f"<p><strong>Customer Name:</strong> {html.escape(customer_name_text)}</p>",
-                           f"<p><strong>Salesperson:</strong> {html.escape(salesman_name if salesman_name else 'N/A')}</p>", f"<hr>"]
-        html_body_parts.append("<h2>Equipment</h2>")
-        if self.equipment_list.count()>0: html_body_parts.append("<ul>"); [html_body_parts.append(f"<li>{html.escape(self.equipment_list.item(i).text())}</li>") for i in range(self.equipment_list.count())]; html_body_parts.append("</ul>")
-        else: html_body_parts.append("<p>No equipment items.</p>")
-        html_body_parts.append("<h2>Trades</h2>")
-        if self.trade_list.count()>0: html_body_parts.append("<ul>"); [html_body_parts.append(f"<li>{html.escape(self.trade_list.item(i).text())}</li>") for i in range(self.trade_list.count())]; html_body_parts.append("</ul>")
-        else: html_body_parts.append("<p>No trade items.</p>")
-        html_body_parts.append("<h2>Parts</h2>")
-        if self.part_list.count()>0: html_body_parts.append("<ul>"); [html_body_parts.append(f"<li>{html.escape(self.part_list.item(i).text())}</li>") for i in range(self.part_list.count())]; html_body_parts.append("</ul>")
-        else: html_body_parts.append("<p>No part items.</p>")
-        html_body_parts.append("<hr><h2>Work Order Details</h2>")
-        wo_req, wo_charge, wo_hours = "Yes" if self.work_order_required.isChecked() else "No", self.work_order_charge_to.text().strip() or "N/A", self.work_order_hours.text().strip() or "N/A"
-        html_body_parts.extend([f"<p><strong>Work Order Required:</strong> {html.escape(wo_req)}</p>", f"<p><strong>Charge To:</strong> {html.escape(wo_charge)}</p>", f"<p><strong>Est. Hours:</strong> {html.escape(wo_hours)}</p>"])
-        html_body_parts.append("<hr><h2>Deal Notes</h2>")
-        deal_notes_text = self.deal_notes_textedit.toPlainText().strip()
-        escaped_notes = html.escape(deal_notes_text).replace('\n', '<br>')
-        html_body_parts.append(f"<p>{escaped_notes if deal_notes_text else 'No additional notes.'}</p>")
-        html_body_parts.append("<hr><p><em>Email generated by BRIDeal System.</em></p>")
-        email_html_body = "".join(html_body_parts)
-        success = send_deal_email_via_sharepoint_service(
-            sharepoint_manager=self.sharepoint_manager_enhanced, recipients=recipients, subject=subject, html_body=email_html_body, logger=self.logger)
-        if success:
-            self.logger.info(f"Email sent successfully via SharePoint for customer: {customer_name_text} to {', '.join(recipients)}.")
-            self._show_status_message("Email sent successfully via SharePoint.", 5000)
-            current_deal_data = self._get_current_deal_data()
-            _save_deal_to_recent_enhanced(current_deal_data, csv_generated=False, email_generated=True, data_path=self._data_path, config=self.config, logger_instance=self.logger)
-            return True
+
+        if self.part_list.count() > 0:
+            if "amsparts@briltd.com" not in recipients:
+                recipients.append("amsparts@briltd.com")
+
+        primary_equipment_focus = "General Inquiry"
+        if self.equipment_list.count() > 0:
+            first_equipment_text = self.equipment_list.item(0).text()
+            match = re.search(r'"(.*?)"', first_equipment_text)
+            if match and match.group(1):
+                primary_equipment_focus = match.group(1)
+        subject = f"AMS DEAL - {customer_name_text} ({primary_equipment_focus})"
+
+        body_parts = []
+        body_parts.append(f"Customer: {customer_name_text}")
+        body_parts.append(f"Sales: {salesman_name if salesman_name else 'N/A'}")
+        body_parts.append("")
+
+        body_parts.append("EQUIPMENT")
+        body_parts.append("--------------------------------------------------")
+        if self.equipment_list.count() > 0:
+            for idx in range(self.equipment_list.count()):
+                original_equipment_text = self.equipment_list.item(idx).text()
+                # Regex to capture name, STK#, and price, excluding quotes around name and the (Code:...) part
+                match = re.search(r'"(.*?)"(?:\s*\(Code:.*?\))?\s*(STK#[\w-]+)\s*(\$\S*)', original_equipment_text)
+                if match:
+                    product_name = match.group(1).strip()
+                    stk_number = match.group(2).strip()
+                    price = match.group(3).strip()
+                    body_parts.append(f"{product_name} {stk_number} {price}")
+                else:
+                    # Fallback if regex doesn't match (e.g., unexpected format)
+                    body_parts.append(original_equipment_text)
         else:
-            self.logger.error(f"Failed to send email via SharePoint for customer: {customer_name_text} (as reported by service call).")
-            self._show_status_message("Failed to send email via SharePoint.", 5000)
+            body_parts.append("No equipment items.")
+        body_parts.append("")
+
+        if self.trade_list.count() > 0:
+            body_parts.append("TRADES")
+            body_parts.append("--------------------------------------------------")
+            for idx in range(self.trade_list.count()):
+                body_parts.append(self.trade_list.item(idx).text()) # Trades formatting remains as is
+            body_parts.append("")
+
+        default_email_part_location = "Killam"
+        default_email_charge_to_stk = ""
+        if self.equipment_list.count() > 0:
+            first_equipment_text = self.equipment_list.item(0).text()
+            match_stk = re.search(r'STK#([\w-]+)', first_equipment_text)
+            if match_stk and match_stk.group(1):
+                default_email_charge_to_stk = match_stk.group(1)
+        else:
+            default_email_charge_to_stk = "N/A"
+
+        body_parts.append("PARTS")
+        body_parts.append(f"From {default_email_part_location}, Charge to {default_email_charge_to_stk}")
+        body_parts.append("--------------------------------------------------")
+
+        if self.part_list.count() > 0:
+            part_item_pattern = re.compile(r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$')
+            for idx in range(self.part_list.count()):
+                part_text = self.part_list.item(idx).text()
+                match = part_item_pattern.match(part_text)
+                if match:
+                    qty_str, number, name, location, charge_to = [(g or "").strip() for g in match.groups()]
+
+                    email_part_line_parts = []
+                    current_part_line = f"{qty_str}x"
+                    if number and number.lower() not in ["n/a", "(p/n not specified)", ""]:
+                        current_part_line += f" {number}"
+                    email_part_line_parts.append(current_part_line)
+
+                    if location and location != default_email_part_location:
+                        email_part_line_parts.append(f"| Loc: {location}")
+                    if charge_to and charge_to != default_email_charge_to_stk:
+                        email_part_line_parts.append(f"| Charge to: {charge_to}")
+
+                    final_email_part_line = " ".join(p for p in email_part_line_parts if p)
+                    body_parts.append(final_email_part_line)
+                else:
+                    body_parts.append(part_text)
+        else:
+            body_parts.append("No part items.")
+        body_parts.append("")
+
+        concluding_remarks = []
+        if self.work_order_required.isChecked():
+            wo_charge = self.work_order_charge_to.text().strip() or 'N/A'
+            wo_hours = self.work_order_hours.text().strip() or 'N/A'
+            concluding_remarks.append(f"Work Order: Required. Charge To: {wo_charge}. Est. Hours: {wo_hours}.")
+
+        deal_notes_text = self.deal_notes_textedit.toPlainText().strip()
+        if deal_notes_text:
+            concluding_remarks.append(deal_notes_text)
+
+        if concluding_remarks: # Only add if there are actual remarks
+            body_parts.extend(concluding_remarks)
+        # Removed: else: body_parts.append("No additional notes or work order details.")
+
+        body_parts.append("")
+        salesperson_ending_name = salesman_name if salesman_name else "Salesperson"
+        body_parts.append(f"CDK and spreadsheet have been updated. {salesperson_ending_name} to collect.")
+
+        email_body = "\n".join(body_parts)
+
+        # Commented out SharePoint service call
+        # success = send_deal_email_via_sharepoint_service(
+        #     sharepoint_manager=self.sharepoint_manager_enhanced, recipients=recipients, subject=subject, html_body=email_html_body, logger=self.logger)
+
+        outlook_base_url = "https://outlook.office.com/mail/deeplink/compose"
+        to_field = ",".join(recipients)
+
+        # Ensure subject and body are strings before quoting
+        str_subject = str(subject) if subject is not None else ""
+
+        encoded_subject = urllib.parse.quote(str_subject)
+        encoded_body = urllib.parse.quote(email_body)
+
+        deep_link_url = f"{outlook_base_url}?to={to_field}&subject={encoded_subject}&body={encoded_body}"
+
+        try:
+            email_opened = webbrowser.open(deep_link_url)
+            if email_opened:
+                self.logger.info(f"Outlook compose window opened successfully for customer: {customer_name_text} to {', '.join(recipients)}.")
+                self._show_status_message("Outlook compose window opened.", 5000)
+                current_deal_data = self._get_current_deal_data()
+                _save_deal_to_recent_enhanced(current_deal_data, csv_generated=False, email_generated=True, data_path=self._data_path, config=self.config, logger_instance=self.logger)
+                return True
+            else:
+                self.logger.warning(f"webbrowser.open() returned False for Outlook link for customer: {customer_name_text}.")
+                self._show_status_message("Failed to open Outlook compose window (webbrowser.open returned False).", 5000)
+                return False
+        except Exception as e:
+            self.logger.error(f"Failed to open Outlook compose window for customer: {customer_name_text}. Error: {e}", exc_info=True)
+            self._show_status_message(f"Error opening Outlook: {e}", 5000)
             return False
 
     def generate_csv_and_email(self): # Name kept for now, but only does SP Log + Email
         self.logger.info(f"Initiating 'Generate All' (Log to SP & Email) for {self.module_name}...")
-        if not self.validate_form_for_csv(): 
+        if not self.validate_form_for_csv():
             self._show_status_message("Generate All cancelled: Validation failed.", 3000)
             return
 
@@ -1266,7 +1386,7 @@ class DealFormView(QWidget):
             self._show_status_message("Form has been reset.", 3000)
             self.customer_name.setFocus()
 
-    def validate_form_for_csv(self) -> bool: 
+    def validate_form_for_csv(self) -> bool:
         if not self.customer_name.text().strip(): QMessageBox.warning(self, "Missing Data", "Customer name required."); self.customer_name.setFocus(); return False
         if not self.salesperson.text().strip(): QMessageBox.warning(self, "Missing Data", "Salesperson name required."); self.salesperson.setFocus(); return False
         if not (self.equipment_list.count() > 0 or self.trade_list.count() > 0 or self.part_list.count() > 0):
