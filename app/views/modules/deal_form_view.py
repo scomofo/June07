@@ -1323,7 +1323,7 @@ class DealFormView(QWidget):
             self._show_status_message("Form populated from draft.", 3000)
         except Exception as e: self.logger.error(f"Error populating from draft: {e}", exc_info=True); QMessageBox.critical(self, "Populate Error", f"Error populating form:\n{e}")
 
-    def log_deal_to_sharepoint(self):
+    def log_deal_to_sharepoint(self, called_from_generate_all=False):
         self.logger.info("Attempting to log deal to SharePoint Excel...")
         self._show_status_message("Logging deal to SharePoint...", 2000)
 
@@ -1405,43 +1405,59 @@ class DealFormView(QWidget):
             return False
         try:
             self.logger.info(f"Preparing to upload {len(rows_to_upload)} row(s) to SharePoint sheet 'App'.")
-            success = self.sharepoint_manager_enhanced.update_excel_data(
+            sp_action_successful = self.sharepoint_manager_enhanced.update_excel_data(
                 new_data=rows_to_upload,
                 target_sheet_name_for_append="App"
             )
-            if success:
+            if sp_action_successful:
                 self.logger.info("Successfully logged deal to SharePoint Excel.")
                 self._show_status_message("Deal logged to SharePoint successfully!", 5000)
-                _save_deal_to_recent_enhanced(self._get_current_deal_data(),
-                                              csv_generated=True, # Using csv_generated as a proxy for "logged to SP"
-                                              email_generated=False,
-                                              data_path=self._data_path, config=self.config, logger_instance=self.logger)
-                return True
+                if not called_from_generate_all:
+                    recent_save_successful = _save_deal_to_recent_enhanced(
+                        self._get_current_deal_data(),
+                        csv_generated=True,  # Using csv_generated as a proxy for "logged to SP"
+                        email_generated=False,
+                        data_path=self._data_path,
+                        config=self.config,
+                        logger_instance=self.logger
+                    )
+                    if not recent_save_successful:
+                        QMessageBox.warning(
+                            self,
+                            "Recent Deals Save Warning",
+                            "The deal was logged to SharePoint, but saving it to the 'Recent Deals' list failed. "
+                            "This usually happens if the Customer Name or Salesperson is missing. Please check these fields."
+                        )
             else:
                 self.logger.error("Failed to log deal to SharePoint Excel (update_excel_data returned False).")
                 QMessageBox.warning(self, "SharePoint Error", "Failed to log deal to SharePoint. Please check logs.")
                 self._show_status_message("Error: Failed to log deal to SharePoint.", 5000)
-                return False
+
+            return sp_action_successful
         except Exception as e:
             self.logger.error(f"An unexpected error occurred while logging deal to SharePoint: {e}", exc_info=True)
             QMessageBox.critical(self, "SharePoint Error", f"An unexpected error occurred: {e}")
             self._show_status_message("Error: Unexpected issue logging to SharePoint.", 5000)
             return False
 
-    def generate_email(self):
-        self.logger.info("Starting email generation via SharePoint service...")
+    def generate_email(self, called_from_generate_all=False):
+        self.logger.info("Starting email generation...")
         self._show_status_message("Generating email...", 2000)
-        if not self.sharepoint_manager_enhanced:
-            QMessageBox.critical(self, "Configuration Error", "SharePoint manager is not initialized. Cannot send email.")
+        email_action_successful = False # Initialize success flag
+
+        if not self.sharepoint_manager_enhanced: # This check seems more about general readiness than specific to email action
+            QMessageBox.critical(self, "Configuration Error", "SharePoint manager is not initialized. Cannot proceed.")
             self.logger.error("Email generation failed: SharePoint manager (enhanced) not available.")
             self._show_status_message("Error: SharePoint manager not ready.", 5000)
-            return False
+            return False # Early exit, email_action_successful remains False
+
         customer_name_text = self.customer_name.text().strip()
         if not customer_name_text:
             QMessageBox.warning(self, "Missing Data", "Customer name is required to generate an email.")
             self.logger.warning("Email generation cancelled: Customer name missing.")
             self._show_status_message("Email generation cancelled: Customer name missing.", 3000)
-            return False
+            return False # Early exit, email_action_successful remains False
+
         salesman_name = self.salesperson.text().strip()
         salesman_email = None
         if salesman_name:
@@ -1579,21 +1595,36 @@ class DealFormView(QWidget):
         deep_link_url = f"{outlook_base_url}?to={to_field}&subject={encoded_subject}&body={encoded_body}"
 
         try:
-            email_opened = webbrowser.open(deep_link_url)
-            if email_opened:
+            email_action_successful = webbrowser.open(deep_link_url)
+            if email_action_successful:
                 self.logger.info(f"Outlook compose window opened successfully for customer: {customer_name_text} to {', '.join(recipients)}.")
                 self._show_status_message("Outlook compose window opened.", 5000)
-                current_deal_data = self._get_current_deal_data()
-                _save_deal_to_recent_enhanced(current_deal_data, csv_generated=False, email_generated=True, data_path=self._data_path, config=self.config, logger_instance=self.logger)
-                return True
+                if not called_from_generate_all:
+                    recent_save_successful = _save_deal_to_recent_enhanced(
+                        self._get_current_deal_data(),
+                        csv_generated=False,
+                        email_generated=True,
+                        data_path=self._data_path,
+                        config=self.config,
+                        logger_instance=self.logger
+                    )
+                    if not recent_save_successful:
+                        QMessageBox.warning(
+                            self,
+                            "Recent Deals Save Warning",
+                            "The email was prepared, but saving the deal to the 'Recent Deals' list failed. "
+                            "This usually happens if the Customer Name or Salesperson is missing. Please check these fields."
+                        )
             else:
                 self.logger.warning(f"webbrowser.open() returned False for Outlook link for customer: {customer_name_text}.")
                 self._show_status_message("Failed to open Outlook compose window (webbrowser.open returned False).", 5000)
-                return False
+                # email_action_successful is already False from initialization or webbrowser.open()
         except Exception as e:
             self.logger.error(f"Failed to open Outlook compose window for customer: {customer_name_text}. Error: {e}", exc_info=True)
             self._show_status_message(f"Error opening Outlook: {e}", 5000)
-            return False
+            email_action_successful = False # Ensure it's false on exception
+
+        return email_action_successful
 
     def generate_csv_and_email(self): # Name kept for now, but only does SP Log + Email
         self.logger.info(f"Initiating 'Generate All' (Log to SP & Email) for {self.module_name}...")
@@ -1601,24 +1632,38 @@ class DealFormView(QWidget):
             self._show_status_message("Generate All cancelled: Validation failed.", 3000)
             return
 
-        logged_to_sp_ok = self.log_deal_to_sharepoint()
-        email_ok = False
-        if logged_to_sp_ok: # Only attempt email if logging to SP was successful
-            email_ok = self.generate_email()
-        else:
-            self.logger.warning("Logging to SharePoint failed, skipping email generation.")
+        sp_log_success = self.log_deal_to_sharepoint(called_from_generate_all=True)
+        # self.logger.info(f"SharePoint logging result: {sp_log_success}") # Optional: for debugging
 
-        if logged_to_sp_ok and email_ok:
-            self._show_status_message("'Generate All': Log to SP & Email processes completed.", 5000)
-            # _save_deal_to_recent_enhanced is called by log_deal_to_sharepoint and generate_email
-            # To ensure both flags are true if both actions succeeded:
-            current_deal_data = self._get_current_deal_data()
-            _save_deal_to_recent_enhanced(current_deal_data, csv_generated=True, email_generated=True, # csv_generated=True means logged to SP
-                                          data_path=self._data_path, config=self.config, logger_instance=self.logger)
-        elif logged_to_sp_ok:
-            self._show_status_message("'Generate All': Log to SP done. Email failed or skipped.", 4000)
+        email_gen_success = self.generate_email(called_from_generate_all=True)
+        # self.logger.info(f"Email generation result: {email_gen_success}") # Optional: for debugging
+
+        final_deal_data = self._get_current_deal_data()
+
+        save_to_recent_success = _save_deal_to_recent_enhanced(
+            deal_data_dict=final_deal_data,
+            csv_generated=sp_log_success,
+            email_generated=email_gen_success,
+            data_path=self._data_path,
+            config=self.config,
+            logger_instance=self.logger
+        )
+
+        sp_status_str = "Success" if sp_log_success else "Failed"
+        email_status_str = "Success" if email_gen_success else "Failed"
+
+        if save_to_recent_success:
+            status_message = (f"'Generate All' process complete. SharePoint: {sp_status_str}, "
+                              f"Email: {email_status_str}. Recent deal logged.")
+            self._show_status_message(status_message, 7000)
         else:
-            self._show_status_message("'Generate All': Log to SP failed. Email skipped.", 4000)
+            QMessageBox.warning(
+                self,
+                "Recent Deals Save Error",
+                f"'Generate All' main tasks completed (SharePoint: {sp_status_str}, Email: {email_status_str}), "
+                "but saving the deal to 'Recent Deals' failed. "
+                "Please check Customer Name and Salesperson fields."
+            )
 
 
     def reset_form_no_confirm(self):
