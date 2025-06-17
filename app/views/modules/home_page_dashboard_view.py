@@ -5,6 +5,7 @@ import json
 import requests # For making HTTP requests to weather API
 import datetime # For handling dates for historical forex data
 from typing import Optional, List, Dict, Any
+from pathlib import Path # Using pathlib for robustness
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QApplication, QToolTip
@@ -308,6 +309,25 @@ class HomePageDashboardView(BaseViewModule):
             parent=parent
         )
 
+        self.openweathermap_api_key: Optional[str] = None
+        self.exchangerate_api_key: Optional[str] = None
+        try:
+            # Assuming config.json is in the application's root directory.
+            config_file_path = Path("config.json")
+            if config_file_path.exists():
+                with open(config_file_path, 'r', encoding='utf-8') as f:
+                    config_data = json.load(f)
+                    self.openweathermap_api_key = config_data.get("OPENWEATHERMAP_API_KEY")
+                    self.exchangerate_api_key = config_data.get("EXCHANGERATE_API_KEY")
+                    if self.openweathermap_api_key and self.exchangerate_api_key:
+                        self.logger.info("Successfully loaded API keys directly from config.json for dashboard.")
+                    else:
+                        self.logger.warning("One or both API keys (OpenWeatherMap, ExchangeRate) not found in config.json during direct load.")
+            else:
+                self.logger.error(f"config.json not found at {config_file_path.resolve()} for direct API key loading.")
+        except Exception as e:
+            self.logger.error(f"Error loading API keys directly from config.json: {e}", exc_info=True)
+
         self.thread_pool = QThreadPool() # Initialize QThreadPool
         self.logger.info(f"QThreadPool initialized. Max threads: {self.thread_pool.maxThreadCount()}")
 
@@ -487,11 +507,11 @@ class HomePageDashboardView(BaseViewModule):
         self.logger.info("Initiating fetch for all weather data...")
         self._update_status("Fetching all weather data...")
 
-        # Retrieve API key from config
-        openweathermap_api_key = self.config.get("OPENWEATHERMAP_API_KEY", "YOUR_API_KEY_HERE")
+        # Retrieve API key from self
+        openweathermap_api_key = self.openweathermap_api_key
 
-        if openweathermap_api_key == "YOUR_API_KEY_HERE" or not openweathermap_api_key:
-            self.logger.warning("OpenWeatherMap API key is not set in config. Weather data will not be fetched.")
+        if not openweathermap_api_key:
+            self.logger.warning("OpenWeatherMap API key is not set. Weather data will not be fetched.")
             for city_info in CITIES_DETAILS:
                 card = self.weather_cards.get(city_info['key'])
                 if card:
@@ -571,27 +591,13 @@ class HomePageDashboardView(BaseViewModule):
                 raise Exception(f"API Error: {data_latest.get('error-type', 'Unknown API error')}")
         except Exception as e:
             self.logger.error(f"Worker: Error fetching latest USD-CAD rate: {e}", exc_info=True)
+            if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
+                self.logger.error(f"Worker: HTTPError details - Status: {e.response.status_code}, Response: {e.response.text}")
             # Optionally re-raise or return partial data / specific error
             raise # Re-raise to be caught by Worker's main error handler
 
-        try:
-            date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
-            url_historical = f"{EXCHANGERATE_BASE_URL}{api_key}/history/USD/{date_7_days_ago.year}/{date_7_days_ago.month}/{date_7_days_ago.day}"
-            response_historical = requests.get(url_historical, timeout=10)
-            response_historical.raise_for_status()
-            data_historical = response_historical.json()
-            if data_historical.get("result") == "success" and 'conversion_rates' in data_historical:
-                historical_rate = data_historical['conversion_rates'].get('CAD')
-            else:
-                 raise Exception(f"API Error for historical: {data_historical.get('error-type', 'Unknown API error')}")
-        except Exception as e:
-            self.logger.error(f"Worker: Error fetching historical USD-CAD rate: {e}", exc_info=True)
-            # If current_rate was fetched, we might still return it, or handle error more gracefully
-            # For now, let's ensure both are available or it's an error.
-            # If current_rate is None at this point, it implies the first block failed and raised.
-            # If current_rate is not None but historical fails, we might want to return partial or raise.
-            # For simplicity, if historical fails after current succeeded, we'll let it propagate.
-            raise
+        # Historical data fetching block removed.
+        # historical_rate remains None as initialized.
 
         return {"current_rate": current_rate, "historical_rate": historical_rate}
 
@@ -603,31 +609,20 @@ class HomePageDashboardView(BaseViewModule):
             return
 
         current_rate = data.get("current_rate")
-        historical_rate = data.get("historical_rate")
+        # historical_rate = data.get("historical_rate") # This will be None
 
-        color_green = "#28a745"
-        color_red = "#dc3545"
-        color_grey = "#566573"
-        display_text = "🇺🇸🇨🇦 USD-CAD: Data N/A"
+        # Unused color variables removed as trend logic is simplified
+        # color_green = "#28a745"
+        # color_red = "#dc3545"
+        # color_grey = "#566573"
+        display_text = "🇺🇸🇨🇦 USD-CAD: Data N/A" # Default if data or current_rate is None
 
         if current_rate is not None:
-            if historical_rate is not None and historical_rate != 0:
-                perc_change = ((current_rate - historical_rate) / historical_rate) * 100
-                trend_arrow = "→"
-                arrow_color = color_grey
-                if current_rate > historical_rate:
-                    trend_arrow = "↑"
-                    arrow_color = color_green
-                elif current_rate < historical_rate:
-                    trend_arrow = "↓"
-                    arrow_color = color_red
-                display_text = (f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} "
-                                f"<font color='{arrow_color}'>{trend_arrow}</font> "
-                                f"({perc_change:+.2f}%)")
-            elif historical_rate == 0:
-                display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A, Hist. was 0)"
-            else:
-                display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A)"
+            display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f}" # Simplified display
+        else:
+            # This case handles if current_rate is None but data itself was not None
+            # (e.g., API response was valid but didn't contain CAD rate for USD)
+            display_text = "🇺🇸🇨🇦 USD-CAD: Rate N/A"
         
         self.forex_usdcad_label.setText(display_text)
         self._update_status("Forex data updated.")
@@ -636,6 +631,7 @@ class HomePageDashboardView(BaseViewModule):
         # error_info might be (None, exc_type, exception, traceback_str) if city_key is not used for forex/crypto
         _optional_key, exc_type, error_val, tb_str = error_info
         self.logger.error(f"Error fetching Forex data: {exc_type.__name__} - {error_val}. Traceback: {tb_str}")
+        self.logger.error(f"Detailed error value from worker: {str(error_val)}")
         self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: ⚠️ Error ({exc_type.__name__})")
         self._update_status("Forex: Error")
 
@@ -644,10 +640,10 @@ class HomePageDashboardView(BaseViewModule):
         self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: ⏳ Fetching...")
         self._update_status("Fetching USD-CAD data...")
 
-        exchangerate_api_key = self.config.get("EXCHANGERATE_API_KEY", "YOUR_API_KEY_HERE")
+        exchangerate_api_key = self.exchangerate_api_key
 
-        if exchangerate_api_key == "YOUR_API_KEY_HERE" or not exchangerate_api_key:
-            self.logger.warning("ExchangeRate-API key is not set in config. Forex data will not be fetched.")
+        if not exchangerate_api_key:
+            self.logger.warning("ExchangeRate-API key is not set. Forex data will not be fetched.")
             self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: API Key Required")
             self._update_status("Forex: API Key Required")
             return
