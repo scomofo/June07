@@ -17,7 +17,7 @@ import io
 import html # Added import
 from app.services.email_service import send_deal_email_via_sharepoint_service # Added import
 
-from PyQt6.QtCore import Qt, pyqtSignal, QObject, QRunnable, QThreadPool, QTimer, QSize, QStringListModel
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QRunnable, QThreadPool, QTimer, QSize, QStringListModel, QEvent
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTextEdit, QListWidget, QListWidgetItem, QCheckBox, QComboBox,
@@ -256,6 +256,12 @@ class DealFormView(QWidget):
         self.parts_data = {}
         self.last_charge_to = ""
 
+        # Flags for lazy loading
+        self.customers_data_loaded = False
+        self.salesmen_data_loaded = False
+        self.equipment_data_loaded = False # For products
+        self.parts_data_loaded = False
+
         self.thread_pool = QThreadPool()
 
         if sharepoint_manager:
@@ -374,11 +380,195 @@ class DealFormView(QWidget):
         else: self.logger.error("❌ Failed to download content for products CSV.")
 
     def load_initial_data(self):
-        self.logger.info("Loading initial data from SharePoint...")
-        self.customers_data.clear(); self.salesmen_data.clear()
-        self.equipment_products_data.clear(); self.parts_data.clear()
-        self.reload_data_with_graph_api()
-        self.logger.info("Finished initial data loading sequence.")
+        self.logger.info("Initial data loading deferred for lazy loading.")
+        # self.customers_data.clear(); self.salesmen_data.clear() # Data dicts are initialized empty
+        # self.equipment_products_data.clear(); self.parts_data.clear()
+        # self.reload_data_with_graph_api() # Commented out for lazy loading
+        self.logger.info("Deferred initial data load. Will load on demand.")
+
+    # --- Start of Lazy Loading Methods ---
+
+    def _create_worker(self, target_method, on_success, on_error, data_type_tag):
+        worker = Worker(target_method)
+        # Pass data_type_tag to error and success handlers using lambda
+        worker.signals.result.connect(lambda result: on_success(data_type_tag, result))
+        worker.signals.error.connect(lambda error_info: on_error(data_type_tag, error_info))
+        # worker.signals.finished.connect(lambda: self.logger.debug(f"Worker finished for {data_type_tag}"))
+        return worker
+
+    def _on_data_loaded_success(self, data_type: str, result_data: Any):
+        self.logger.info(f"Successfully loaded data for {data_type}.")
+        if data_type == 'customers':
+            self.customers_data_loaded = True
+            # The result_data is the actual data dictionary processed by the worker
+            self.customers_data = result_data
+        elif data_type == 'salesmen':
+            self.salesmen_data_loaded = True
+            self.salesmen_data = result_data
+        elif data_type == 'equipment': # products
+            self.equipment_data_loaded = True
+            self.equipment_products_data = result_data
+        elif data_type == 'parts':
+            self.parts_data_loaded = True
+            self.parts_data = result_data
+
+        self._populate_autocompleters() # Refresh completers for all data types
+        self._show_status_message(f"{data_type.capitalize()} data loaded.", 3000)
+
+    def _on_data_load_error(self, data_type: str, error_info: tuple):
+        ex_type, ex_value, tb_str = error_info
+        self.logger.error(f"Error loading {data_type} data: {ex_type.__name__}: {ex_value}\nTraceback: {tb_str}")
+        self._show_status_message(f"Error loading {data_type} data. See logs.", 5000)
+
+    # Customers
+    def load_customers_data_async(self):
+        if self.customers_data_loaded:
+            self.logger.debug("Customer data already loaded or currently loading.")
+            return
+        self.logger.info("Initiating asynchronous load for customers data...")
+        self._show_status_message("Loading customer data...", 2000)
+        # Temporarily set flag to prevent re-entry, actual success sets it permanently
+        self.customers_data_loaded = True # Mark as "loading" to prevent multiple triggers
+        worker = self._create_worker(
+            target_method=lambda: self._fetch_and_process_data('customers'),
+            on_success=self._on_data_loaded_success,
+            on_error=self._on_data_load_error,
+            data_type_tag='customers'
+        )
+        self.thread_pool.start(worker)
+
+    # Salesmen
+    def load_salesmen_data_async(self):
+        if self.salesmen_data_loaded:
+            self.logger.debug("Salesmen data already loaded or currently loading.")
+            return
+        self.logger.info("Initiating asynchronous load for salesmen data...")
+        self._show_status_message("Loading salesmen data...", 2000)
+        self.salesmen_data_loaded = True # Mark as "loading"
+        worker = self._create_worker(
+            target_method=lambda: self._fetch_and_process_data('salesmen'),
+            on_success=self._on_data_loaded_success,
+            on_error=self._on_data_load_error,
+            data_type_tag='salesmen'
+        )
+        self.thread_pool.start(worker)
+
+    # Equipment (Products)
+    def load_equipment_data_async(self):
+        if self.equipment_data_loaded:
+            self.logger.debug("Equipment (products) data already loaded or currently loading.")
+            return
+        self.logger.info("Initiating asynchronous load for equipment (products) data...")
+        self._show_status_message("Loading equipment data...", 2000)
+        self.equipment_data_loaded = True # Mark as "loading"
+        worker = self._create_worker(
+            target_method=lambda: self._fetch_and_process_data('products'), # Note: API type is 'products'
+            on_success=self._on_data_loaded_success,
+            on_error=self._on_data_load_error,
+            data_type_tag='equipment' # Tag for UI/flag purposes
+        )
+        self.thread_pool.start(worker)
+
+    # Parts
+    def load_parts_data_async(self):
+        if self.parts_data_loaded:
+            self.logger.debug("Parts data already loaded or currently loading.")
+            return
+        self.logger.info("Initiating asynchronous load for parts data...")
+        self._show_status_message("Loading parts data...", 2000)
+        self.parts_data_loaded = True # Mark as "loading"
+        worker = self._create_worker(
+            target_method=lambda: self._fetch_and_process_data('parts'),
+            on_success=self._on_data_loaded_success,
+            on_error=self._on_data_load_error,
+            data_type_tag='parts'
+        )
+        self.thread_pool.start(worker)
+
+    def _fetch_and_process_data(self, data_type_api_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Worker method to download, parse CSV content, and return the processed data dictionary.
+        data_type_api_key is 'customers', 'salesmen', 'products', or 'parts' for API call.
+        """
+        self.logger.info(f"Worker thread: Starting download for {data_type_api_key}...")
+        csv_content = self.download_csv_via_graph_api(data_type_api_key)
+        if not csv_content:
+            self.logger.error(f"Worker thread: No content downloaded for {data_type_api_key}.")
+            # Reset loaded flag on failure so it can be retried
+            if data_type_api_key == 'customers': self.customers_data_loaded = False
+            elif data_type_api_key == 'salesmen': self.salesmen_data_loaded = False
+            elif data_type_api_key == 'products': self.equipment_data_loaded = False
+            elif data_type_api_key == 'parts': self.parts_data_loaded = False
+            raise ValueError(f"No content downloaded for {data_type_api_key}") # Raise error for worker signal
+
+        self.logger.info(f"Worker thread: Downloaded {len(csv_content)} chars for {data_type_api_key}. Processing...")
+
+        # Temporary dictionary to hold processed data
+        processed_data_dict = {}
+
+        try:
+            first_line_end = csv_content.find('\n')
+            header_line = csv_content[:first_line_end] if first_line_end != -1 else csv_content
+            content_after_header = csv_content[first_line_end + 1:] if first_line_end != -1 else ""
+            if not header_line.strip(): raise ValueError("Downloaded content has no header line.")
+
+            header_reader = csv.reader(io.StringIO(header_line))
+            raw_headers = next(header_reader, None)
+            if not raw_headers: raise ValueError("Could not parse headers from downloaded content.")
+
+            cleaned_headers = [header.lstrip('\ufeff').strip() for header in raw_headers]
+            csv_file_like = io.StringIO(content_after_header)
+            reader = csv.DictReader(csv_file_like, fieldnames=cleaned_headers)
+
+            # Call the appropriate original _load_*_data method by adapting its signature
+            # or by creating new parsing methods.
+            # For now, directly populate a temporary dict based on data_type_api_key
+
+            if data_type_api_key == 'customers':
+                name_key = self._find_header_key(cleaned_headers, ['Name', 'Customer Name', 'CustomerName'])
+                if not name_key: raise ValueError(f"Customers CSV: Name column not found in headers: {cleaned_headers}")
+                for row in reader:
+                    customer_name = row.get(name_key, '').strip()
+                    if customer_name: processed_data_dict[customer_name] = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
+
+            elif data_type_api_key == 'salesmen':
+                name_key = self._find_header_key(cleaned_headers, ['Name', 'Salesman Name', 'SalesmanName'])
+                if not name_key: raise ValueError(f"Salesmen CSV: Name column not found in headers: {cleaned_headers}")
+                for row in reader:
+                    salesman_name = row.get(name_key, '').strip()
+                    if salesman_name: processed_data_dict[salesman_name] = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
+
+            elif data_type_api_key == 'products': # Corresponds to self.equipment_products_data
+                code_key = self._find_header_key(cleaned_headers, ['ProductCode', 'Product Code', 'Code'])
+                if not code_key: raise ValueError(f"Products CSV: ProductCode column not found in headers: {cleaned_headers}")
+                for row in reader:
+                    product_code = row.get(code_key, '').strip()
+                    if product_code: processed_data_dict[product_code] = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
+
+            elif data_type_api_key == 'parts':
+                number_key = self._find_header_key(cleaned_headers, ['Part Number', 'Part No', 'Part #', 'PartNumber', 'Number'])
+                if not number_key: raise ValueError(f"Parts CSV: Part Number column not found in headers: {cleaned_headers}")
+                for row in reader:
+                    part_number = row.get(number_key, '').strip()
+                    if part_number: processed_data_dict[part_number] = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
+
+            else:
+                self.logger.error(f"Worker thread: Unknown data_type_api_key '{data_type_api_key}' for processing.")
+                raise ValueError(f"Unknown data_type_api_key for processing: {data_type_api_key}")
+
+            self.logger.info(f"Worker thread: Successfully processed {len(processed_data_dict)} records for {data_type_api_key}.")
+            return processed_data_dict
+
+        except Exception as e:
+            self.logger.error(f"Worker thread: Error processing {data_type_api_key} CSV content: {e}", exc_info=True)
+            # Reset loaded flag on failure so it can be retried
+            if data_type_api_key == 'customers': self.customers_data_loaded = False
+            elif data_type_api_key == 'salesmen': self.salesmen_data_loaded = False
+            elif data_type_api_key == 'products': self.equipment_data_loaded = False
+            elif data_type_api_key == 'parts': self.parts_data_loaded = False
+            raise # Reraise exception to be caught by Worker and emitted as error signal
+
+    # --- End of Lazy Loading Methods ---
 
     def _load_csv_file(self, file_path: str, data_type: str) -> bool:
         if not os.path.exists(file_path):
@@ -554,6 +744,12 @@ class DealFormView(QWidget):
         header_layout.addWidget(self.sp_status_label_ui)
         header_layout.addStretch()
         content_layout.addWidget(header_widget)
+
+        # Create a layout for draft actions
+        self.draft_actions_layout = QHBoxLayout()
+        self.draft_actions_layout.addStretch(1) # Push buttons to the right
+        content_layout.addLayout(self.draft_actions_layout)
+
         customer_sales_group = QGroupBox("Customer & Salesperson")
         cs_layout = QHBoxLayout(customer_sales_group)
         self.customer_name = QLineEdit(); self.customer_name.setPlaceholderText("Customer Name")
@@ -583,11 +779,28 @@ class DealFormView(QWidget):
         self.delete_line_btn.clicked.connect(self.delete_selected_list_item)
         main_actions_layout.addWidget(self.delete_line_btn)
         main_actions_layout.addStretch(1)
+
+        # Initialize draft buttons
         self.save_draft_btn = QPushButton("Save Draft"); self.save_draft_btn.clicked.connect(self.save_draft)
-        main_actions_layout.addWidget(self.save_draft_btn)
         self.load_draft_btn = QPushButton("Load Draft"); self.load_draft_btn.clicked.connect(self.load_draft)
-        main_actions_layout.addWidget(self.load_draft_btn)
-        main_actions_layout.addSpacing(20)
+
+        # Add draft buttons to the self.draft_actions_layout (before the stretch item)
+        # Insert order is reversed to get "Save" then "Load"
+        self.draft_actions_layout.insertWidget(0, self.load_draft_btn)
+        self.draft_actions_layout.insertWidget(0, self.save_draft_btn)
+        # self.draft_actions_layout.addStretch(1) # This was added when layout was created, to push to right.
+                                                 # If buttons should be on left, remove stretch from draft_actions_layout
+                                                 # or add buttons to the left of a new stretch in draft_actions_layout.
+                                                 # Current setup: Header [DraftButtons ---stretch---] CustomerSales ...
+                                                 # The stretch added during draft_actions_layout creation will push these to the right.
+                                                 # To have them on the left of the draft_actions_layout space:
+                                                 # Clear layout: while self.draft_actions_layout.count(): self.draft_actions_layout.takeAt(0).widget()
+                                                 # Then: self.draft_actions_layout.addWidget(self.save_draft_btn)
+                                                 #       self.draft_actions_layout.addWidget(self.load_draft_btn)
+                                                 #       self.draft_actions_layout.addStretch(1)
+
+        # Original main_actions_layout no longer contains these buttons
+        main_actions_layout.addSpacing(20) # Keep spacing for other buttons
 
         self.log_to_sharepoint_btn = QPushButton("Log to SharePoint") # New Button
         self.log_to_sharepoint_btn.clicked.connect(self.log_deal_to_sharepoint) # New Connection
@@ -615,6 +828,31 @@ class DealFormView(QWidget):
         if hasattr(self, 'equipment_product_code'): self.equipment_product_code.editingFinished.connect(self._on_equipment_product_code_selected)
         if hasattr(self, 'part_number'): self.part_number.editingFinished.connect(self._on_part_number_selected)
         self.customer_name.editingFinished.connect(self.on_customer_field_changed)
+
+        # Install event filters for lazy loading triggers
+        self.customer_name.installEventFilter(self)
+        self.salesperson.installEventFilter(self)
+        # Equipment and Parts line edits are created in helper methods,
+        # so event filters will be installed there or after init_ui.
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.FocusIn:
+            if obj == self.customer_name:
+                self.load_customers_data_async()
+            elif obj == self.salesperson:
+                self.load_salesmen_data_async()
+            elif hasattr(self, 'equipment_product_name') and obj == self.equipment_product_name:
+                self.load_equipment_data_async()
+            elif hasattr(self, 'part_number') and obj == self.part_number:
+                 self.load_parts_data_async()
+            # Consider part_name as well if it can be a primary entry point
+            elif hasattr(self, 'part_name') and obj == self.part_name:
+                 self.load_parts_data_async()
+            # Consider trade_name for equipment data if it uses product list
+            elif hasattr(self, 'trade_name') and obj == self.trade_name:
+                 self.load_equipment_data_async() # Assuming trades might use equipment/product names
+
+        return super().eventFilter(obj, event)
 
     def _create_equipment_section(self):
         equipment_group = QGroupBox("Equipment")
@@ -650,6 +888,11 @@ class DealFormView(QWidget):
         self.equipment_list = QListWidget(); self.equipment_list.setAlternatingRowColors(True); self.equipment_list.setMinimumHeight(100)
         self.equipment_list.itemDoubleClicked.connect(self.edit_equipment_item)
         equipment_main_layout.addWidget(self.equipment_list)
+
+        # Install event filter for equipment product name if not already done centrally
+        if hasattr(self, 'equipment_product_name'):
+            self.equipment_product_name.installEventFilter(self)
+
         return equipment_group
 
     def _create_trade_section(self):
@@ -674,6 +917,11 @@ class DealFormView(QWidget):
         self.trade_list = QListWidget(); self.trade_list.setAlternatingRowColors(True); self.trade_list.setMinimumHeight(80)
         self.trade_list.itemDoubleClicked.connect(self.edit_trade_item)
         trades_main_layout.addWidget(self.trade_list)
+
+        # Install event filter for trade name if it uses equipment/product list
+        if hasattr(self, 'trade_name'):
+            self.trade_name.installEventFilter(self)
+
         return trades_group
 
     def _create_parts_section(self):
@@ -706,6 +954,13 @@ class DealFormView(QWidget):
         self.part_list = QListWidget(); self.part_list.setAlternatingRowColors(True); self.part_list.setMinimumHeight(80)
         self.part_list.itemDoubleClicked.connect(self.edit_part_item)
         parts_main_layout.addWidget(self.part_list)
+
+        # Install event filters for part number and part name
+        if hasattr(self, 'part_number'):
+            self.part_number.installEventFilter(self)
+        if hasattr(self, 'part_name'):
+            self.part_name.installEventFilter(self)
+
         return parts_group
 
     def _create_work_order_options_section(self):
@@ -1249,21 +1504,21 @@ class DealFormView(QWidget):
                 body_parts.append(self.trade_list.item(idx).text()) # Trades formatting remains as is
             body_parts.append("")
 
-        default_email_part_location = "Killam"
-        default_email_charge_to_stk = ""
-        if self.equipment_list.count() > 0:
-            first_equipment_text = self.equipment_list.item(0).text()
-            match_stk = re.search(r'STK#([\w-]+)', first_equipment_text)
-            if match_stk and match_stk.group(1):
-                default_email_charge_to_stk = match_stk.group(1)
-        else:
-            default_email_charge_to_stk = "N/A"
-
-        body_parts.append("PARTS")
-        body_parts.append(f"From {default_email_part_location}, Charge to {default_email_charge_to_stk}")
-        body_parts.append("--------------------------------------------------")
-
         if self.part_list.count() > 0:
+            default_email_part_location = "Killam"
+            default_email_charge_to_stk = ""
+            if self.equipment_list.count() > 0:
+                first_equipment_text = self.equipment_list.item(0).text()
+                match_stk = re.search(r'STK#([\w-]+)', first_equipment_text)
+                if match_stk and match_stk.group(1):
+                    default_email_charge_to_stk = match_stk.group(1)
+            else:
+                default_email_charge_to_stk = "N/A"
+
+            body_parts.append("PARTS")
+            body_parts.append(f"From {default_email_part_location}, Charge to {default_email_charge_to_stk}")
+            body_parts.append("--------------------------------------------------")
+
             part_item_pattern = re.compile(r'(\d+)x\s(.*?)\s-\s(.*?)(?:\s*\|\s*Loc:\s*(.*?))?(?:\s*\|\s*Charge to:\s*(.*?))?$')
             for idx in range(self.part_list.count()):
                 part_text = self.part_list.item(idx).text()
@@ -1286,9 +1541,7 @@ class DealFormView(QWidget):
                     body_parts.append(final_email_part_line)
                 else:
                     body_parts.append(part_text)
-        else:
-            body_parts.append("No part items.")
-        body_parts.append("")
+            body_parts.append("") # Add a blank line after listing all parts
 
         concluding_remarks = []
         if self.work_order_required.isChecked():
