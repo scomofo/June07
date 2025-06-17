@@ -10,3 +10,4 @@ pyperclip>=1.8.2
 pyautogui>=0.9.52
 httpx
 reportlab
+pyqtgraph

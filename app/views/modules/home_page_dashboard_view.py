@@ -19,6 +19,7 @@ from app.views.modules.base_view_module import BaseViewModule
 # from app.services.forex_service import ForexService
 # from app.services.commodity_service import CommodityService
 # from app.services.crypto_service import CryptoService
+from app.views.widgets.chart_widget import ChartWidget
 
 # --- Worker Classes (Copied and adapted) ---
 class WorkerSignals(QObject):
@@ -406,6 +407,10 @@ class HomePageDashboardView(BaseViewModule):
         self.forex_usdcad_label.setTextFormat(Qt.TextFormat.RichText) # Ensure RichText is enabled
         financial_layout.addWidget(self.forex_usdcad_label)
 
+        self.usdcad_chart_widget = ChartWidget(title="USD-CAD Weekly Trend", x_label="Time", y_label="Rate")
+        self.usdcad_chart_widget.setMinimumHeight(150) # Give it some space
+        financial_layout.addWidget(self.usdcad_chart_widget)
+
         # self.canola_price_label = QLabel("🌾 Canola: Fetching...") # Removed
         # self.canola_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium)) # Removed
         # financial_layout.addWidget(self.canola_price_label) # Removed
@@ -414,6 +419,10 @@ class HomePageDashboardView(BaseViewModule):
         self.btc_price_label.setFont(QFont("Arial", 11, QFont.Weight.Medium))
         self.btc_price_label.setTextFormat(Qt.TextFormat.RichText) # Ensure RichText is enabled
         financial_layout.addWidget(self.btc_price_label)
+
+        self.btc_chart_widget = ChartWidget(title="BTC Weekly Trend", x_label="Time", y_label="Price (USD)")
+        self.btc_chart_widget.setMinimumHeight(150) # Give it some space
+        financial_layout.addWidget(self.btc_chart_widget)
         
         financial_layout.addStretch()
         grid_layout.addWidget(financial_frame, 0, 1)
@@ -581,6 +590,7 @@ class HomePageDashboardView(BaseViewModule):
         historical_rate: Optional[float] = None
 
         try:
+            # Fetch current rate
             url_latest = f"{EXCHANGERATE_BASE_URL}{api_key}/latest/USD"
             response_latest = requests.get(url_latest, timeout=10)
             response_latest.raise_for_status()
@@ -588,42 +598,112 @@ class HomePageDashboardView(BaseViewModule):
             if data_latest.get("result") == "success" and 'conversion_rates' in data_latest:
                 current_rate = data_latest['conversion_rates'].get('CAD')
             else:
-                raise Exception(f"API Error: {data_latest.get('error-type', 'Unknown API error')}")
+                self.logger.error(f"API Error for current rate: {data_latest.get('error-type', 'Unknown API error')}")
+                # We can still try to fetch historical data even if current fails, or raise immediately.
+                # For now, let's log and continue, current_rate will remain None.
+                # raise Exception(f"API Error (Current): {data_latest.get('error-type', 'Unknown API error')}")
+
         except Exception as e:
             self.logger.error(f"Worker: Error fetching latest USD-CAD rate: {e}", exc_info=True)
             if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
-                self.logger.error(f"Worker: HTTPError details - Status: {e.response.status_code}, Response: {e.response.text}")
-            # Optionally re-raise or return partial data / specific error
-            raise # Re-raise to be caught by Worker's main error handler
+                self.logger.error(f"Worker: HTTPError (Current) - Status: {e.response.status_code}, Response: {e.response.text}")
+            # If current rate fails, we might not want to proceed or might want to signal this specific failure.
+            # For now, we'll let it proceed to historical, and the calling function can decide based on None values.
 
-        # Historical data fetching block removed.
-        # historical_rate remains None as initialized.
+        try:
+            # Fetch historical rate for 7 days ago
+            date_7_days_ago = datetime.date.today() - datetime.timedelta(days=7)
+            # Format as YYYY/MM/DD for the ExchangeRate-API history endpoint
+            formatted_date_7_days_ago = date_7_days_ago.strftime('%Y/%m/%d')
+
+            # Construct the URL for historical data. Base currency is USD.
+            # Example: https://v6.exchangerate-api.com/v6/YOUR_API_KEY/history/USD/2023/10/27
+            url_historical = f"{EXCHANGERATE_BASE_URL}{api_key}/history/USD/{formatted_date_7_days_ago}"
+
+            self.logger.info(f"Worker: Fetching historical USD-CAD rate for {formatted_date_7_days_ago} from {url_historical}")
+            response_historical = requests.get(url_historical, timeout=10)
+            response_historical.raise_for_status()
+            data_historical = response_historical.json()
+
+            if data_historical.get("result") == "success" and 'conversion_rates' in data_historical:
+                historical_rate = data_historical['conversion_rates'].get('CAD')
+                if historical_rate is None:
+                    self.logger.warning(f"CAD not found in historical rates for {formatted_date_7_days_ago}. Available rates: {data_historical['conversion_rates'].keys()}")
+            else:
+                self.logger.error(f"API Error for historical rate {formatted_date_7_days_ago}: {data_historical.get('error-type', 'Unknown API error')}")
+                # raise Exception(f"API Error (Historical): {data_historical.get('error-type', 'Unknown API error')}")
+
+        except Exception as e:
+            self.logger.error(f"Worker: Error fetching historical USD-CAD rate: {e}", exc_info=True)
+            if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
+                self.logger.error(f"Worker: HTTPError (Historical) - Status: {e.response.status_code}, Response: {e.response.text}")
+            # If historical rate fails, we proceed with historical_rate as None.
+
+        if current_rate is None and historical_rate is None:
+            # If both calls failed to retrieve meaningful data, it's better to raise an error
+            # so the main thread knows something went significantly wrong.
+            # However, the Worker class already handles generic exceptions.
+            # We could return a more specific error or rely on the calling function to check for Nones.
+            # For now, returning None for rates should be handled by _on_forex_data_received.
+            self.logger.warning("Worker: Both current and historical USD-CAD rates could not be fetched.")
+
 
         return {"current_rate": current_rate, "historical_rate": historical_rate}
 
     def _on_forex_data_received(self, data: Optional[Dict[str, Any]]):
-        self.logger.info("Forex data received.")
-        if data is None: # Should be handled by error signal, but as a safeguard
-            self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: Error fetching data")
+        self.logger.info(f"Forex data received: {data}") # Log the received data for debugging
+        if data is None:
+            self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: Error fetching data (worker returned None)")
             self._update_status("Forex: Error")
             return
 
         current_rate = data.get("current_rate")
-        # historical_rate = data.get("historical_rate") # This will be None
+        historical_rate = data.get("historical_rate")
 
-        # Unused color variables removed as trend logic is simplified
-        # color_green = "#28a745"
-        # color_red = "#dc3545"
-        # color_grey = "#566573"
-        display_text = "🇺🇸🇨🇦 USD-CAD: Data N/A" # Default if data or current_rate is None
+        color_green = "#28a745"  # Green for upward trend
+        color_red = "#dc3545"    # Red for downward trend
+        color_grey = "#566573"   # Grey for no change or N/A
+
+        display_text = "🇺🇸🇨🇦 USD-CAD: Data N/A"
 
         if current_rate is not None:
-            display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f}" # Simplified display
-        else:
-            # This case handles if current_rate is None but data itself was not None
-            # (e.g., API response was valid but didn't contain CAD rate for USD)
-            display_text = "🇺🇸🇨🇦 USD-CAD: Rate N/A"
-        
+            if historical_rate is not None and historical_rate != 0:
+                percentage_change = ((current_rate - historical_rate) / historical_rate) * 100
+                trend_arrow = "→"
+                arrow_color = color_grey
+
+                if current_rate > historical_rate:
+                    trend_arrow = "▲" # Using a more distinct up arrow
+                    arrow_color = color_green
+                elif current_rate < historical_rate:
+                    trend_arrow = "▼" # Using a more distinct down arrow
+                    arrow_color = color_red
+
+                display_text = (f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} "
+                                f"<font color='{arrow_color}'>{trend_arrow}</font> "
+                                f"({percentage_change:+.2f}%)")
+                # Update chart
+                if hasattr(self, 'usdcad_chart_widget'):
+                    x_data = [0, 1] # Representing 7 days ago and today
+                    y_data = [historical_rate, current_rate]
+                    self.usdcad_chart_widget.update_data(x_data, y_data, pen_color='g') # Green for forex
+            elif historical_rate == 0: # Handle division by zero if historical rate was 0
+                display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A, Hist. was 0)"
+                if hasattr(self, 'usdcad_chart_widget'):
+                    self.usdcad_chart_widget.clear_plot()
+            else: # Historical rate is None, but current rate is available
+                display_text = f"🇺🇸🇨🇦 USD-CAD: {current_rate:.4f} (Trend N/A)"
+                if hasattr(self, 'usdcad_chart_widget'):
+                    self.usdcad_chart_widget.clear_plot()
+        elif historical_rate is not None: # Current rate is None, but historical is available
+            display_text = f"🇺🇸🇨🇦 USD-CAD: Current N/A (Hist: {historical_rate:.4f})"
+            if hasattr(self, 'usdcad_chart_widget'):
+                self.usdcad_chart_widget.clear_plot()
+        else: # Both are None
+            display_text = "🇺🇸🇨🇦 USD-CAD: All rates N/A"
+            if hasattr(self, 'usdcad_chart_widget'):
+                self.usdcad_chart_widget.clear_plot()
+
         self.forex_usdcad_label.setText(display_text)
         self._update_status("Forex data updated.")
 
@@ -633,11 +713,15 @@ class HomePageDashboardView(BaseViewModule):
         self.logger.error(f"Error fetching Forex data: {exc_type.__name__} - {error_val}. Traceback: {tb_str}")
         self.logger.error(f"Detailed error value from worker: {str(error_val)}")
         self.forex_usdcad_label.setText(f"🇺🇸🇨🇦 USD-CAD: ⚠️ Error ({exc_type.__name__})")
+        if hasattr(self, 'usdcad_chart_widget'):
+            self.usdcad_chart_widget.clear_plot()
         self._update_status("Forex: Error")
 
     def _fetch_forex_data(self):
         self.logger.info("Initiating fetch for USD-CAD forex data...")
         self.forex_usdcad_label.setText("🇺🇸🇨🇦 USD-CAD: ⏳ Fetching...")
+        if hasattr(self, 'usdcad_chart_widget'): # Ensure chart is cleared before fetching
+            self.usdcad_chart_widget.clear_plot()
         self._update_status("Fetching USD-CAD data...")
 
         exchangerate_api_key = self.exchangerate_api_key
@@ -692,9 +776,11 @@ class HomePageDashboardView(BaseViewModule):
         return {"current_btc_price": current_btc_price, "historical_btc_price": historical_btc_price}
 
     def _on_crypto_data_received(self, data: Optional[Dict[str, Any]]):
-        self.logger.info("Crypto data received.")
+        self.logger.info(f"Crypto data received: {data}")
         if data is None:
-            self.btc_price_label.setText("₿ BTC-USD: Error fetching data")
+            self.btc_price_label.setText("₿ BTC-USD: Error fetching data (worker returned None)")
+            if hasattr(self, 'btc_chart_widget'):
+                self.btc_chart_widget.clear_plot()
             self._update_status("Crypto: Error")
             return
 
@@ -712,18 +798,36 @@ class HomePageDashboardView(BaseViewModule):
                 trend_arrow_btc = "→"
                 arrow_color_btc = color_grey
                 if current_btc_price > historical_btc_price:
-                    trend_arrow_btc = "↑"
+                    trend_arrow_btc = "↑" # Using a more distinct up arrow
                     arrow_color_btc = color_green
                 elif current_btc_price < historical_btc_price:
-                    trend_arrow_btc = "↓"
+                    trend_arrow_btc = "↓" # Using a more distinct down arrow
                     arrow_color_btc = color_red
                 display_text_btc = (f"₿ BTC-USD: ${current_btc_price:,.2f} "
                                     f"<font color='{arrow_color_btc}'>{trend_arrow_btc}</font> "
                                     f"({perc_change_btc:+.2f}%)")
+                # Update chart
+                if hasattr(self, 'btc_chart_widget'):
+                    x_data = [0, 1] # Representing 7 days ago and today
+                    y_data = [historical_btc_price, current_btc_price]
+                    self.btc_chart_widget.update_data(x_data, y_data, pen_color='orange')
             elif historical_btc_price == 0:
                  display_text_btc = f"₿ BTC-USD: ${current_btc_price:,.2f} (Trend N/A, Hist. was 0)"
-            else:
+                 if hasattr(self, 'btc_chart_widget'):
+                    self.btc_chart_widget.clear_plot() # Cannot show trend if hist was 0
+            else: # Historical price is None
                 display_text_btc = f"₿ BTC-USD: ${current_btc_price:,.2f} (Trend N/A)"
+                if hasattr(self, 'btc_chart_widget'):
+                    self.btc_chart_widget.clear_plot() # Not enough data for trend
+        elif historical_btc_price is not None: # Current is None, historical is available
+            display_text_btc = f"₿ BTC-USD: Current N/A (Hist: ${historical_btc_price:,.2f})"
+            if hasattr(self, 'btc_chart_widget'):
+                self.btc_chart_widget.clear_plot()
+        else: # Both are None
+            display_text_btc = "₿ BTC-USD: All rates N/A"
+            if hasattr(self, 'btc_chart_widget'):
+                self.btc_chart_widget.clear_plot()
+
 
         self.btc_price_label.setText(display_text_btc)
         self._update_status("Crypto data updated.")
@@ -732,11 +836,15 @@ class HomePageDashboardView(BaseViewModule):
         _optional_key, exc_type, error_val, tb_str = error_info
         self.logger.error(f"Error fetching Crypto data: {exc_type.__name__} - {error_val}. Traceback: {tb_str}")
         self.btc_price_label.setText(f"₿ BTC-USD: ⚠️ Error ({exc_type.__name__})")
+        if hasattr(self, 'btc_chart_widget'):
+            self.btc_chart_widget.clear_plot()
         self._update_status("Crypto: Error")
 
     def _fetch_crypto_prices(self):
         self.logger.info("Initiating fetch for BTC-USD price data...")
         self.btc_price_label.setText("₿ BTC-USD: ⏳ Fetching...")
+        if hasattr(self, 'btc_chart_widget'): # Ensure chart is cleared before fetching
+            self.btc_chart_widget.clear_plot()
         self._update_status("Fetching BTC-USD data...")
 
         worker = Worker(self._fetch_crypto_prices_worker) # No city_key needed
