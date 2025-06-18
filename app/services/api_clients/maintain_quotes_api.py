@@ -1,19 +1,21 @@
-# Resubmitting to ensure latest changes are propagated.
 # app/services/api_clients/maintain_quotes_api.py
 import logging
 from typing import Optional, Dict, Any
+import asyncio # Added import for asyncio for async methods
 
 from app.core.result import Result
 from app.core.exceptions import BRIDealException, ErrorContext, ErrorSeverity
-# Assuming Config class is in app.core.config
 from app.core.config import BRIDealConfig, get_config
-# Assuming JDQuoteApiClient is the actual client making HTTP calls
 from app.services.api_clients.jd_quote_client import JDQuoteApiClient
 
 logger = logging.getLogger(__name__)
 
 class MaintainQuotesAPI:
-
+    """
+    A service layer that uses JDQuoteApiClient to interact with an external
+    system for maintaining quotes (e.g., John Deere's quoting system).
+    This class orchestrates calls to the JDQuoteApiClient.
+    """
     def __init__(self, config: BRIDealConfig, jd_quote_api_client: Optional[JDQuoteApiClient] = None):
         """
         Initializes the MaintainQuotesAPI.
@@ -28,7 +30,7 @@ class MaintainQuotesAPI:
 
         if not self.config:
             logger.error("MaintainQuotesAPI: BRIDealConfig object not provided. API will be non-functional.")
-            return # Cannot proceed without config
+            return
 
         if self.jd_quote_api_client:
             if self.jd_quote_api_client.is_operational:
@@ -38,7 +40,6 @@ class MaintainQuotesAPI:
                 logger.warning("MaintainQuotesAPI: JDQuoteApiClient is provided but not operational. API will be non-functional.")
         else:
             logger.warning("MaintainQuotesAPI: JDQuoteApiClient is not provided. API will be non-functional.")
-            # self.is_operational remains False
 
     def create_quote_in_external_system(self, quote_payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -54,13 +55,12 @@ class MaintainQuotesAPI:
             logger.error("MaintainQuotesAPI: Cannot create quote. Service is not operational.")
             return None
         
-        if not self.jd_quote_api_client: # Should be caught by is_operational, but as safeguard
+        if not self.jd_quote_api_client:
             logger.error("MaintainQuotesAPI: JDQuoteApiClient not available. Cannot create quote.")
             return None
 
         logger.info(f"MaintainQuotesAPI: Attempting to create quote in external system with payload: {quote_payload}")
         try:
-            # Delegate the actual API call to the jd_quote_api_client
             response = self.jd_quote_api_client.submit_new_quote(quote_data=quote_payload)
             if response and response.get("id"):
                 logger.info(f"MaintainQuotesAPI: Quote successfully created in external system. Response ID: {response.get('id')}")
@@ -92,13 +92,13 @@ class MaintainQuotesAPI:
 
         logger.info(f"MaintainQuotesAPI: Requesting status for external quote ID: {external_quote_id}")
         try:
-            response_result: Result[Dict, BRIDealException] = await self.jd_quote_api_client.get_quote_details(quote_id=external_quote_id) # Await here
+            response_result: Result[Dict, BRIDealException] = await self.jd_quote_api_client.get_quote_details(quote_id=external_quote_id)
             if response_result.is_success():
                 logger.info(f"MaintainQuotesAPI: Successfully retrieved status for quote {external_quote_id}.")
-                return response_result.value # Return the actual dictionary
+                return response_result.value
             else:
                 logger.warning(f"MaintainQuotesAPI: Failed to get status for quote {external_quote_id}. Error type: {type(response_result.error)}, Error repr: {repr(response_result.error)}, Error str: {response_result.error}")
-                return None # Or an error dict: {"error": str(response_result.error)}
+                return None
         except Exception as e:
             logger.error(f"MaintainQuotesAPI: Exception while fetching external quote status for {external_quote_id}: {e}", exc_info=True)
             return None
@@ -125,7 +125,7 @@ class MaintainQuotesAPI:
         logger.info(f"MaintainQuotesAPI: Attempting to update quote {external_quote_id} in external system with payload: {update_payload}")
         try:
             response = self.jd_quote_api_client.update_existing_quote(quote_id=external_quote_id, update_data=update_payload)
-            if response and response.get("status") == "updated": # Assuming a successful update response structure
+            if response and response.get("status") == "updated":
                 logger.info(f"MaintainQuotesAPI: Quote {external_quote_id} successfully updated in external system.")
                 return response
             else:
@@ -135,21 +135,55 @@ class MaintainQuotesAPI:
             logger.error(f"MaintainQuotesAPI: Exception during external quote update for {external_quote_id}: {e}", exc_info=True)
             return None
 
+    async def get_quotes_by_criteria(self, dealer_racf_id: str, criteria: Dict[str, Any]) -> Result[Dict, BRIDealException]: #
+        """
+        Fetches quotes based on specific criteria from the external system using the API client.
+
+        Args:
+            dealer_racf_id (str): The RACF ID of the dealer.
+            criteria (Dict[str, Any]): A dictionary containing the query criteria (e.g., date range).
+
+        Returns:
+            Result[Dict, BRIDealException]: A Result object containing the fetched quotes data
+                                            on success, or a BRIDealException on failure.
+        """
+        if not self.is_operational:
+            return Result.failure(BRIDealException(
+                "MaintainQuotesAPI is not operational. Cannot fetch quotes.",
+                context=ErrorContext(severity=ErrorSeverity.ERROR, details={"reason": "Service not operational"}) #
+            ))
+        
+        if not self.jd_quote_api_client:
+            return Result.failure(BRIDealException(
+                "JDQuoteApiClient not available. Cannot fetch quotes.",
+                context=ErrorContext(severity=ErrorSeverity.ERROR, details={"reason": "API client not provided"}) #
+            ))
+
+        logger.info(f"MaintainQuotesAPI: Fetching quotes for dealer {dealer_racf_id} with criteria: {criteria}")
+        try:
+            # Assuming jd_quote_api_client has a method to handle such a query
+            # This method should ideally return a Result object from jd_quote_client
+            # For this fix, let's assume get_quotes is the method in JDQuoteApiClient
+            result: Result[Dict, BRIDealException] = await self.jd_quote_api_client.get_quotes(criteria=criteria)
+            return result
+        except Exception as e:
+            logger.error(f"MaintainQuotesAPI: Unexpected exception while fetching quotes: {e}", exc_info=True)
+            return Result.failure(BRIDealException(
+                f"An unexpected error occurred while fetching quotes: {str(e)}",
+                context=ErrorContext(severity=ErrorSeverity.CRITICAL, details={"exception": str(e)}) #
+            ))
+
 
 # Example Usage (for testing this module standalone)
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - [%(module)s.%(funcName)s:%(lineno)d] - %(message)s')
 
-    # Simulate Config object
-    class MockConfigMaintain(Config):
+    class MockConfigMaintain(BRIDealConfig): # Changed from Config to BRIDealConfig
         def __init__(self, settings_dict=None):
             self.settings = settings_dict if settings_dict else {}
-            # Minimal super init for Config's structure if its methods are called
             super().__init__(env_path=".env.test_maintain_api")
             if settings_dict: self.settings.update(settings_dict)
 
-
-    # Simulate JDQuoteApiClient
     class MockJDQuoteApiClient:
         def __init__(self, operational=True, base_url="http://mock.api"):
             self.is_operational = operational
@@ -161,15 +195,41 @@ if __name__ == "__main__":
             if not self.is_operational: return None
             return {"id": "MOCK_NEW_QUOTE_ID_123", "status": "submitted", "message": "Quote created in mock client"}
 
-        def get_quote_details(self, quote_id: str) -> Optional[Dict[str, Any]]:
+        async def get_quote_details(self, quote_id: str) -> Result[Dict, BRIDealException]:
             self.logger.info(f"MockJDQuoteApiClient: get_quote_details called for {quote_id}")
-            if not self.is_operational: return None
-            return {"id": quote_id, "status": "approved", "amount": 5000, "customer": "Mock Customer Inc."}
+            if not self.is_operational:
+                return Result.failure(BRIDealException("Mock API Client not operational."))
+            await asyncio.sleep(0.05) # Simulate async operation
+            return Result.success({"id": quote_id, "status": "approved", "amount": 5000, "customer": "Mock Customer Inc."})
 
         def update_existing_quote(self, quote_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             self.logger.info(f"MockJDQuoteApiClient: update_existing_quote called for {quote_id} with {update_data}")
             if not self.is_operational: return None
             return {"id": quote_id, "status": "updated", "message": "Quote updated in mock client"}
+
+        async def get_quotes(self, criteria: Dict[str, Any]) -> Result[Dict, BRIDealException]: # Mock for get_quotes_by_criteria
+            self.logger.info(f"MockJDQuoteApiClient: get_quotes called with criteria: {criteria}")
+            if not self.is_operational:
+                return Result.failure(BRIDealException("Mock API Client not operational for fetching quotes."))
+            await asyncio.sleep(0.1) # Simulate async delay
+            dealer_racf_id = criteria.get("dealerRacfID")
+            start_date = criteria.get("startModifiedDate")
+            end_date = criteria.get("endModifiedDate")
+
+            if dealer_racf_id == "x950700" and start_date and end_date:
+                # Simulate some quote data
+                return Result.success({
+                    "statusCode": "1",
+                    "body": [
+                        {"quoteId": "Q001", "dealerId": dealer_racf_id, "modifiedDate": "01/15/2023", "amount": 15000},
+                        {"quoteId": "Q002", "dealerId": dealer_racf_id, "modifiedDate": "03/20/2023", "amount": 25000}
+                    ],
+                    "errorMessage": None
+                })
+            elif dealer_racf_id == "error_dealer":
+                return Result.failure(BRIDealException("Simulated API error for this dealer.", context=ErrorContext(details={"errorCode": "MOCK_D_ERR"})))
+            else:
+                return Result.success({"statusCode": "1", "body": [], "errorMessage": "No quotes found for criteria in mock."})
 
 
     mock_config_instance = MockConfigMaintain()
@@ -184,12 +244,27 @@ if __name__ == "__main__":
         creation_response = maintain_api_ok.create_quote_in_external_system({"item": "Tractor X100", "price": 75000})
         print(f"Create Quote Response: {creation_response}")
 
-        if creation_response and creation_response.get("id"):
-            status_response = maintain_api_ok.get_external_quote_status(creation_response.get("id"))
-            print(f"Get Quote Status Response: {status_response}")
+        async def test_get_status_and_quotes():
+            if creation_response and creation_response.get("id"):
+                status_result = await maintain_api_ok.get_external_quote_status(creation_response.get("id"))
+                print(f"Get Quote Status Response (Result): {status_result}")
+                # For this specific mock, get_external_quote_status returns a Result object, need to check its value
+                if status_result and status_result.is_success():
+                    print(f"Get Quote Status Value: {status_result.value}")
 
-            update_response = maintain_api_ok.update_quote_in_external_system(creation_response.get("id"), {"price": 72000, "notes": "Special discount applied"})
-            print(f"Update Quote Response: {update_response}")
+                update_response = maintain_api_ok.update_quote_in_external_system(creation_response.get("id"), {"price": 72000, "notes": "Special discount applied"})
+                print(f"Update Quote Response: {update_response}")
+            
+            # Test get_quotes_by_criteria
+            quotes_criteria_success_result = await maintain_api_ok.get_quotes_by_criteria("x950700", {"startModifiedDate": "01/01/2023", "endModifiedDate": "12/31/2023"})
+            print(f"Quotes by Criteria Success Result: {quotes_criteria_success_result}")
+            if quotes_criteria_success_result.is_success():
+                print(f"Quotes Data: {quotes_criteria_success_result.value}")
+
+            quotes_criteria_error_result = await maintain_api_ok.get_quotes_by_criteria("error_dealer", {"startModifiedDate": "01/01/2023", "endModifiedDate": "12/31/2023"})
+            print(f"Quotes by Criteria Error Result: {quotes_criteria_error_result}")
+
+        asyncio.run(test_get_status_and_quotes())
 
 
     # --- Test Case 2: MaintainQuotesAPI Not Operational (JDQuoteApiClient not operational) ---
@@ -200,13 +275,25 @@ if __name__ == "__main__":
     creation_response_fail = maintain_api_not_op_client.create_quote_in_external_system({"item": "Plow Y200", "price": 5000})
     print(f"Create Quote Response (should be None or error): {creation_response_fail}")
 
+    async def test_fetch_quotes_not_op():
+        quotes_not_op_result = await maintain_api_not_op_client.get_quotes_by_criteria("any_dealer", {})
+        print(f"Quotes (Not Operational) Result: {quotes_not_op_result}")
+    asyncio.run(test_fetch_quotes_not_op())
+
+
     # --- Test Case 3: MaintainQuotesAPI Not Operational (JDQuoteApiClient not provided) ---
     print("\n--- Test Case 3: MaintainQuotesAPI Not Operational (JDQuoteApiClient not provided) ---")
     maintain_api_no_client = MaintainQuotesAPI(config=mock_config_instance, jd_quote_api_client=None)
     print(f"MaintainQuotesAPI Operational: {maintain_api_no_client.is_operational}")
-    status_response_fail = maintain_api_no_client.get_external_quote_status("ANY_ID")
-    print(f"Get Quote Status Response (should be None or error): {status_response_fail}")
+    async def test_fetch_quotes_no_client():
+        status_response_fail = await maintain_api_no_client.get_external_quote_status("ANY_ID")
+        print(f"Get Quote Status Response (should be None or error): {status_response_fail}")
+        quotes_no_client_result = await maintain_api_no_client.get_quotes_by_criteria("any_dealer", {})
+        print(f"Quotes (No Client) Result: {quotes_no_client_result}")
+    asyncio.run(test_fetch_quotes_no_client())
+
 
     # Clean up dummy .env file if created by MockConfigMaintain's super().__init__
+    import os
     if os.path.exists(".env.test_maintain_api"):
         os.remove(".env.test_maintain_api")
