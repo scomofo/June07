@@ -54,6 +54,7 @@ from app.services.integrations.jd_quote_integration_service import JDQuoteIntegr
 # View Module Imports
 from app.views.modules.home_page_dashboard_view import HomePageDashboardView # Added Home Page Dashboard
 from app.views.modules.deal_form_view import DealFormView
+from app.views.modules.get_quotes_view import GetQuotesView # Added Get Quotes
 from app.views.modules.recent_deals_view import RecentDealsView
 from app.views.modules.price_book_view import PriceBookView
 from app.views.modules.used_inventory_view import UsedInventoryView
@@ -440,6 +441,7 @@ class MainWindow(QMainWindow):
            modules_to_load = [
                ("home_dashboard", self._create_home_page_dashboard_view, "Home Dashboard"), # Added Home Dashboard
                ("deal_form", self._create_deal_form_view, "New Deal"),
+               ("get_quotes", self._create_get_quotes_view, "Get Quotes"), # Added Get Quotes
                ("recent_deals", self._create_recent_deals_view, "Recent Deals"),
                ("price_book", self._create_price_book_view, "Price Book"),
                ("used_inventory", self._create_used_inventory_view, "Used Inventory"),
@@ -500,6 +502,7 @@ class MainWindow(QMainWindow):
            "home_dashboard_icon.png", # Added Home Dashboard icon
            "new_deal_icon.png", "recent_deals_icon.png", "price_book_icon.png",
            "used_inventory_icon.png", "receiving_icon.png", "data_editors_icon.png",
+           # "get_quotes_icon.png", # Removed as Get Quotes module now uses jd_quote_icon.png
            "calculator_icon.png", "jd_quote_icon.png", "invoice_icon.png",
            "settings_icon.png" # Added icon for settings
        ]
