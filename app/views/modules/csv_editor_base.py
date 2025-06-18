@@ -21,7 +21,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThreadPool
 from PyQt6.QtGui import QFont, QPalette, QColor 
 
 from app.views.modules.base_view_module import BaseViewModule
-from app.core.threading import Worker
+from app.core.threading import AsyncWorker as Worker
 
 # Attempt to import EnhancedSharePointManager
 try:
@@ -771,4 +771,4 @@ class CsvEditorBase(BaseViewModule):
         if not selected_rows_indices: return pd.DataFrame()
         data = [[self.table.item(r, c).text() if self.table.item(r, c) else "" for c in range(self.table.columnCount())] for r in selected_rows_indices]
         columns = [self.table.horizontalHeaderItem(i).text() for i in range(self.table.columnCount())]
-        return pd.DataFrame(data, columns=columns)
+        return pd.DataFrame(data, columns=columns)# Test comment
