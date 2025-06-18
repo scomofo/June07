@@ -13,11 +13,7 @@ from app.services.api_clients.jd_quote_client import JDQuoteApiClient
 logger = logging.getLogger(__name__)
 
 class MaintainQuotesAPI:
-    """
-    A service layer that uses JDQuoteApiClient to interact with an external
-    system for maintaining quotes (e.g., John Deere's quoting system).
-    This class orchestrates calls to the JDQuoteApiClient.
-    """
+
     def __init__(self, config: BRIDealConfig, jd_quote_api_client: Optional[JDQuoteApiClient] = None):
         """
         Initializes the MaintainQuotesAPI.
