@@ -1,5 +1,5 @@
 # app/services/integrations/jd_quote_integration_service.py
-from app.core.exceptions import BRIDealException # Added import
+from app.core.exceptions import BRIDealException, ErrorContext, ErrorSeverity # Added ErrorContext, ErrorSeverity
 import asyncio
 import logging
 import json
@@ -279,13 +279,55 @@ class JDQuoteIntegrationService:
             logger.error(f"Error retrieving quote details via API: {e}", exc_info=True)
             return {"type": "ERROR", "body": {"errorMessage": str(e)}}
 
+    async def fetch_quotes_by_date_range(self, dealer_racf_id: str, start_modified_date: str, end_modified_date: str) -> dict:
+        """
+        Fetches quotes from MaintainQuotesAPI based on dealer RACF ID and date range.
+        """
+        if not self.is_operational:
+            logger.error("JDQuoteIntegrationService: Cannot fetch quotes. Service is not operational.")
+            return {"type": "ERROR", "body": {"errorMessage": "JDQuoteIntegrationService is not operational."}}
+        
+        if not self.maintain_quotes_api:
+            logger.error("JDQuoteIntegrationService: MaintainQuotesAPI not available. Cannot fetch quotes.")
+            return {"type": "ERROR", "body": {"errorMessage": "MaintainQuotesAPI is not available."}}
+
+        criteria = {
+            "dealerRacfID": dealer_racf_id,
+            "startModifiedDate": start_modified_date,
+            "endModifiedDate": end_modified_date
+        }
+        
+        logger.info(f"JDQuoteIntegrationService: Fetching quotes for dealer {dealer_racf_id} with date range {start_modified_date} - {end_modified_date}.")
+        
+        try:
+            result: Result[Dict, BRIDealException] = await self.maintain_quotes_api.get_quotes_by_criteria(dealer_racf_id, criteria)
+            
+            if result.is_success():
+                logger.info(f"JDQuoteIntegrationService: Successfully fetched quotes for dealer {dealer_racf_id}.")
+                # The result.value from get_quotes_by_criteria should be the direct API response dictionary
+                # e.g., {"statusCode": "1", "body": [...], "errorMessage": null}
+                return {"type": "SUCCESS", "body": result.value}
+            else:
+                error_message = str(result.error)
+                error_details = None
+                if result.error and hasattr(result.error, 'context') and hasattr(result.error.context, 'details'):
+                    error_details = result.error.context.details
+                logger.error(f"JDQuoteIntegrationService: Failed to fetch quotes for dealer {dealer_racf_id}. Error: {error_message}, Details: {error_details}")
+                return {
+                    "type": "ERROR", 
+                    "body": {"errorMessage": error_message, "details": error_details}
+                }
+        except Exception as e:
+            logger.error(f"JDQuoteIntegrationService: Unexpected exception while fetching quotes for dealer {dealer_racf_id}: {e}", exc_info=True)
+            return {"type": "ERROR", "body": {"errorMessage": f"An unexpected error occurred: {str(e)}"}}
+
 
 # Example Usage (for testing this module standalone)
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - [%(module)s.%(funcName)s:%(lineno)d] - %(message)s')
 
     # Simulate Config object
-    class MockConfigIntegration(Config):
+    class MockConfigIntegration(BRIDealConfig): # Changed from Config to BRIDealConfig
         def __init__(self, settings_dict=None, jd_quote_app_config_path=None):
             self.settings = settings_dict if settings_dict else {}
             if jd_quote_app_config_path:
@@ -308,7 +350,35 @@ if __name__ == "__main__":
         def get_external_quote_status(self, external_quote_id: str) -> Optional[Dict[str, Any]]:
             self.logger.info(f"MockMaintainQuotesAPI: get_external_quote_status for {external_quote_id}")
             if not self.is_operational: return None
-            return {"id": external_quote_id, "status": "approved", "details": "All good"}
+            # Simulate a successful result object for consistency with fetch_quotes_by_date_range
+            return Result.success({"id": external_quote_id, "status": "approved", "details": "All good"})
+
+        async def get_quotes_by_criteria(self, dealer_racf_id: str, criteria: Dict[str, Any]) -> Result[Dict, BRIDealException]:
+            self.logger.info(f"MockMaintainQuotesAPI: get_quotes_by_criteria for {dealer_racf_id} with {criteria}")
+            if not self.is_operational:
+                return Result.failure(BRIDealException("Mock API not operational.", details={"code": "MOCK_NOT_OP"}))
+            await asyncio.sleep(0.1) # Simulate async delay
+            if dealer_racf_id == "x950700":
+                if criteria.get("startModifiedDate") == "01/01/2023" and criteria.get("endModifiedDate") == "12/31/2023":
+                    return Result.success({
+                        "statusCode": "1",
+                        "body": [
+                            {"quoteId": "Q001", "dealerId": dealer_racf_id, "modifiedDate": "01/15/2023", "amount": 15000},
+                            {"quoteId": "Q002", "dealerId": dealer_racf_id, "modifiedDate": "03/20/2023", "amount": 25000}
+                        ],
+                        "errorMessage": None
+                    })
+                else:
+                    return Result.success({
+                        "statusCode": "1",
+                        "body": [],
+                        "errorMessage": "No quotes found for specified date range in mock."
+                    })
+            elif dealer_racf_id == "error_dealer":
+                return Result.failure(BRIDealException("Simulated API error for specific dealer.", details={"errorCode": "DEALER_ERROR"}))
+            elif dealer_racf_id == "exception_dealer":
+                raise Exception("Simulated unexpected exception during API call.")
+            return Result.success({"statusCode": "1", "body": [], "errorMessage": "Dealer not found in mock."})
 
     # Simulate QuoteBuilder
     class MockQuoteBuilder:
@@ -342,12 +412,35 @@ if __name__ == "__main__":
         print(f"Prepared Payload: {prepared_payload}")
 
         if prepared_payload:
+            # Note: submit_prepared_quote in the mock doesn't return a Result object,
+            # so the _handle_api_response would treat it as a "plain response".
             submission_response = integration_service_ok.submit_prepared_quote(prepared_payload)
             print(f"Submission Response: {submission_response}")
             if submission_response and submission_response.get("id"):
-                status = integration_service_ok.get_quote_status_from_external_system(submission_response.get("id"))
-                print(f"Status check for {submission_response.get('id')}: {status}")
+                # get_quote_status_from_external_system in mock now returns Result
+                status_result = integration_service_ok.get_quote_status_from_external_system(submission_response.get("id"))
+                print(f"Status check for {submission_response.get('id')}: {status_result}")
 
+    # --- Test Case 1.5: Test fetch_quotes_by_date_range (SUCCESS) ---
+    print("\n--- Test Case 1.5: Test fetch_quotes_by_date_range (SUCCESS) ---")
+    async def test_fetch_success():
+        response = await integration_service_ok.fetch_quotes_by_date_range("x950700", "01/01/2023", "12/31/2023")
+        print(f"Fetch Quotes Success Response: {response}")
+    asyncio.run(test_fetch_success())
+
+    # --- Test Case 1.6: Test fetch_quotes_by_date_range (API ERROR) ---
+    print("\n--- Test Case 1.6: Test fetch_quotes_by_date_range (API ERROR) ---")
+    async def test_fetch_api_error():
+        response = await integration_service_ok.fetch_quotes_by_date_range("error_dealer", "01/01/2023", "12/31/2023")
+        print(f"Fetch Quotes API Error Response: {response}")
+    asyncio.run(test_fetch_api_error())
+
+    # --- Test Case 1.7: Test fetch_quotes_by_date_range (UNEXPECTED EXCEPTION) ---
+    print("\n--- Test Case 1.7: Test fetch_quotes_by_date_range (UNEXPECTED EXCEPTION) ---")
+    async def test_fetch_unexpected_exception():
+        response = await integration_service_ok.fetch_quotes_by_date_range("exception_dealer", "01/01/2023", "12/31/2023")
+        print(f"Fetch Quotes Unexpected Exception Response: {response}")
+    asyncio.run(test_fetch_unexpected_exception())
 
     # --- Test Case 2: Service Not Operational (MaintainQuotesAPI not operational) ---
     print("\n--- Test Case 2: Service Not Operational (MaintainQuotesAPI not op) ---")
@@ -361,6 +454,11 @@ if __name__ == "__main__":
     submission_response_fail = integration_service_not_op_maintain.submit_prepared_quote({"data": "some_payload"})
     print(f"Submission Response (should be None or error): {submission_response_fail}")
 
+    async def test_fetch_not_operational():
+        response = await integration_service_not_op_maintain.fetch_quotes_by_date_range("x950700", "01/01/2023", "12/31/2023")
+        print(f"Fetch Quotes (Service Not Operational) Response: {response}")
+    asyncio.run(test_fetch_not_operational())
+
 
     # --- Test Case 3: Service Not Operational (MaintainQuotesAPI not provided) ---
     print("\n--- Test Case 3: Service Not Operational (MaintainQuotesAPI not provided) ---")
@@ -370,6 +468,10 @@ if __name__ == "__main__":
         quote_builder=mock_quote_builder_instance
     )
     print(f"Integration Service Operational: {integration_service_no_maintain.is_operational}")
+    async def test_fetch_no_api_provided():
+        response = await integration_service_no_maintain.fetch_quotes_by_date_range("x950700", "01/01/2023", "12/31/2023")
+        print(f"Fetch Quotes (API Not Provided) Response: {response}")
+    asyncio.run(test_fetch_no_api_provided())
 
 
     # --- Test Case 4: Loading JD Quote App Specific Config ---
