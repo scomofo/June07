@@ -3,7 +3,7 @@ import logging
 import json
 from typing import Optional, Dict, Any
 
-from app.core.threading import get_task_manager
+from app.core.threading import TaskManager
 from app.services.integrations.jd_quote_integration_service import JDQuoteIntegrationService
 
 from PyQt6.QtWidgets import (
@@ -24,6 +24,7 @@ class GetQuotesView(BaseViewModule):
     def __init__(self,
                  config: Optional[BRIDealConfig] = None,
                  jd_quote_service: Optional[JDQuoteIntegrationService] = None,
+                 task_manager: Optional[TaskManager] = None,
                  main_window: Optional[QWidget] = None,
                  parent: Optional[QWidget] = None):
         super().__init__(
@@ -34,7 +35,7 @@ class GetQuotesView(BaseViewModule):
             parent=parent
         )
         self.jd_quote_service = jd_quote_service
-        self.task_manager = get_task_manager()
+        self.task_manager = task_manager
         self.icon_name = "jd_quote_icon.png"
 
         self._init_ui()
@@ -127,6 +128,20 @@ class GetQuotesView(BaseViewModule):
         finally:
             self.get_quotes_button.setEnabled(True)
 
+    def _handle_fetch_quotes_response_adapter(self, response_data):
+        # This method is connected to AsyncWorker's result_ready signal
+        class MockFuture:
+            def result(self):
+                return response_data
+        self._handle_fetch_quotes_response(MockFuture())
+
+    def _handle_fetch_quotes_error_adapter(self, exception_object):
+        # This method is connected to AsyncWorker's error_occurred signal
+        logger.error(f"Async task failed: {exception_object}", exc_info=True)
+        self.results_display.setText(f"Error during quote fetch: {exception_object}")
+        QMessageBox.critical(self, "Task Execution Error", f"Failed to execute quote fetching task: {exception_object}")
+        self.get_quotes_button.setEnabled(True) # Re-enable button on error
+
     def _handle_get_quotes_button_pressed(self):
         dealer_racf_id = self.dealer_racf_id_edit.text().strip()
         start_date = self.start_date_edit.text().strip()
@@ -151,14 +166,20 @@ class GetQuotesView(BaseViewModule):
         self.results_display.setText(f"Fetching quotes for Dealer RACF ID: {dealer_racf_id}...\n"
                                      f"Please wait...")
 
-        # Run the asynchronous task
-        # Corrected: Pass callback directly to run_async_task
+        if not self.task_manager: # Check self.task_manager
+            QMessageBox.critical(self, "Service Error", "TaskManager is not configured.")
+            self.results_display.setText("Error: TaskManager not available.")
+            self.get_quotes_button.setEnabled(True)
+            return
+
+        # Run the asynchronous task using TaskManager
         self.task_manager.run_async_task(
-            self._fetch_quotes_async_task,
+            self._fetch_quotes_async_task, # This is an async def method
             dealer_racf_id,
             start_date,
             end_date,
-            callback=self._handle_fetch_quotes_response #
+            on_result=self._handle_fetch_quotes_response_adapter,
+            on_error=self._handle_fetch_quotes_error_adapter
         )
 
     def get_icon_name(self) -> str:
