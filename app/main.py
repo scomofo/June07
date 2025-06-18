@@ -23,7 +23,7 @@ from PyQt6.QtGui import QFont, QIcon, QPixmap
 from app.core.config import get_config, BRIDealConfig
 from app.core.logger_config import setup_logging
 from app.core.app_auth_service import AppAuthService
-from app.core.threading import get_task_manager, TaskManager # Corrected: Changed AsyncTaskManager to TaskManager
+from app.core.threading import get_task_manager, TaskManager, AsyncTaskManager, get_async_task_manager # Corrected: Changed AsyncTaskManager to TaskManager
 from app.core.exceptions import (BRIDealException, AuthenticationError, 
                                  ValidationError, ErrorSeverity, ErrorContext, ErrorCategory)
 from app.core.security import SecureConfig
@@ -88,7 +88,7 @@ class MainWindow(QMainWindow):
                 cache_handler: CacheHandler,
                 token_handler: TokenHandler,
                 secure_config: SecureConfig,
-                task_manager: TaskManager, # Corrected: Changed AsyncTaskManager to TaskManager
+                task_manager: AsyncTaskManager,
                 sharepoint_manager: Optional[SharePointManagerService] = None,
                 jd_auth_manager: Optional[JDAuthManager] = None,
                 jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
@@ -627,6 +627,7 @@ class MainWindow(QMainWindow):
                config=self.config,
                main_window=self,
                jd_quote_service=self.jd_quote_integration_service,
+            async_task_manager=self.task_manager
            )
        except Exception as e:
            self.logger.error(f"Failed to create GetQuotesView: {e}", exc_info=True)
@@ -922,7 +923,7 @@ async def run_application():
        
        cache_handler = CacheHandler(config=config)
        token_handler = TokenHandler(config=config, cache_handler=cache_handler)
-       task_manager = get_task_manager()
+       task_manager = get_async_task_manager()
        
        sharepoint_service_instance = await _initialize_sharepoint_service()
        

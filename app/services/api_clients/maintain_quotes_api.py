@@ -150,13 +150,13 @@ class MaintainQuotesAPI:
         if not self.is_operational:
             return Result.failure(BRIDealException(
                 "MaintainQuotesAPI is not operational. Cannot fetch quotes.",
-                context=ErrorContext(severity=ErrorSeverity.ERROR, details={"reason": "Service not operational"}) #
+                context=ErrorContext(code="SERVICE_NOT_OPERATIONAL", message="MaintainQuotesAPI is not operational. Cannot fetch quotes.", severity=ErrorSeverity.ERROR, details={"reason": "Service not operational"}) #
             ))
         
         if not self.jd_quote_api_client:
             return Result.failure(BRIDealException(
                 "JDQuoteApiClient not available. Cannot fetch quotes.",
-                context=ErrorContext(severity=ErrorSeverity.ERROR, details={"reason": "API client not provided"}) #
+                context=ErrorContext(code="API_CLIENT_UNAVAILABLE", message="JDQuoteApiClient not available. Cannot fetch quotes.", severity=ErrorSeverity.ERROR, details={"reason": "API client not provided"}) #
             ))
 
         logger.info(f"MaintainQuotesAPI: Fetching quotes for dealer {dealer_racf_id} with criteria: {criteria}")
@@ -164,13 +164,13 @@ class MaintainQuotesAPI:
             # Assuming jd_quote_api_client has a method to handle such a query
             # This method should ideally return a Result object from jd_quote_client
             # For this fix, let's assume get_quotes is the method in JDQuoteApiClient
-            result: Result[Dict, BRIDealException] = await self.jd_quote_api_client.get_quotes(criteria=criteria)
+            result: Result[Dict, BRIDealException] = await self.jd_quote_api_client._request("POST", "quotes", data=criteria)
             return result
         except Exception as e:
             logger.error(f"MaintainQuotesAPI: Unexpected exception while fetching quotes: {e}", exc_info=True)
             return Result.failure(BRIDealException(
                 f"An unexpected error occurred while fetching quotes: {str(e)}",
-                context=ErrorContext(severity=ErrorSeverity.CRITICAL, details={"exception": str(e)}) #
+                context=ErrorContext(code="UNEXPECTED_QUOTE_FETCH_ERROR", message=f"An unexpected error occurred while fetching quotes: {str(e)}", severity=ErrorSeverity.CRITICAL, details={"exception": str(e)}) #
             ))
 
 
