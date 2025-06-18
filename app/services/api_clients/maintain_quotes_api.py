@@ -4,7 +4,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from app.core.result import Result
-from app.core.exceptions import BRIDealException
+from app.core.exceptions import BRIDealException, ErrorContext, ErrorSeverity
 # Assuming Config class is in app.core.config
 from app.core.config import BRIDealConfig, get_config
 # Assuming JDQuoteApiClient is the actual client making HTTP calls

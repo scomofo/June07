@@ -1,4 +1,5 @@
 # app/services/integrations/jd_quote_integration_service.py
+from app.core.exceptions import BRIDealException # Added import
 import asyncio
 import logging
 import json
