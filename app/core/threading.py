@@ -94,7 +94,7 @@ class AsyncWorker(QThread):
         super().__init__()
         self.async_fn = async_fn
         self.args = args
-        self.kwargs = kwargs
+        self.kwargs = {k: v for k, v in kwargs.items() if k not in ['on_result', 'on_error', 'callback']}
         self.is_cancelled = False
         self._loop = None
         

@@ -21,7 +21,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThreadPool
 from PyQt6.QtGui import QFont, QPalette, QColor 
 
 from app.views.modules.base_view_module import BaseViewModule
-from app.core.threading import AsyncWorker as Worker
+from app.core.threading import Worker
 
 # Attempt to import EnhancedSharePointManager
 try:

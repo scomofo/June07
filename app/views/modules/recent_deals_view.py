@@ -15,7 +15,7 @@ from PyQt6.QtGui import QFont, QIcon, QColor
 from app.views.modules.base_view_module import BaseViewModule
 from app.core.config import BRIDealConfig, get_config
 from app.utils.cache_handler import CacheHandler
-from app.core.threading import AsyncWorker as Worker
+from app.core.threading import Worker
 
 logger = logging.getLogger(__name__)
 
