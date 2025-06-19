@@ -24,7 +24,7 @@ from app.core.config import get_config, BRIDealConfig
 from app.core.logger_config import setup_logging
 from app.core.app_auth_service import AppAuthService
 from app.core.threading import get_task_manager, TaskManager
-from app.core.exceptions import (BRIDealException, AuthenticationError,
+from app.core.exceptions import (BRIDealException, AuthenticationError, 
                                  ValidationError, ErrorSeverity, ErrorContext, ErrorCategory)
 from app.core.security import SecureConfig
 from app.core.performance import get_http_client_manager, get_performance_monitor, cleanup_performance_resources
@@ -78,12 +78,12 @@ class MainWindow(QMainWindow):
    Enhanced main window with modern architecture, async support, and comprehensive error handling.
    Updated for PyQt6 compatibility.
    """
-
+   
    # Signals for async communication
    authentication_required = pyqtSignal(str)
    service_status_changed = pyqtSignal(str, bool)
-
-   def __init__(self,
+   
+   def __init__(self, 
                 config: BRIDealConfig,
                 cache_handler: CacheHandler,
                 token_handler: TokenHandler,
@@ -94,58 +94,58 @@ class MainWindow(QMainWindow):
                 jd_quote_integration_service: Optional[JDQuoteIntegrationService] = None,
                 parent: Optional[QWidget] = None):
        super().__init__(parent)
-
+       
        # Core components
        self.config = config
        self.cache_handler = cache_handler
        self.token_handler = token_handler
        self.secure_config = secure_config
        self.task_manager = task_manager
-
+       
        # Service components
        self.sharepoint_manager_service = sharepoint_manager
        self.jd_auth_manager_service = jd_auth_manager
        self.jd_quote_integration_service = jd_quote_integration_service
-
+       
        # UI components
        self.theme_manager = None
        self.modules: Dict[str, QWidget] = {}
        self.module_icons_paths: Dict[str, str] = {}
-
+       
        # Performance monitoring
        self.performance_monitor = get_performance_monitor()
        self.http_client_manager = get_http_client_manager()
-
+       
        # Status tracking
        self.service_status: Dict[str, bool] = {}
        self.last_error: Optional[BRIDealException] = None
-
+       
        # Timers for periodic tasks
        self.status_check_timer = QTimer()
        self.performance_report_timer = QTimer()
-
+       
        # Initialize logger for this instance
        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
        self.logger.info(f"MainWindow initializing with config: {config.app_name} v{config.app_version}")
-
+       
        # Connect signals
        self.authentication_required.connect(self._handle_authentication_required)
        self.service_status_changed.connect(self._handle_service_status_change)
-
+       
        try:
            self._init_ui()
            self._setup_periodic_tasks()
            self._load_modules()
            self._check_initial_service_status()
-
+           
            self.logger.info(f"{config.app_name} v{config.app_version} MainWindow initialized successfully.")
            self.show_status_message(f"Welcome to {config.app_name}!", "info")
-
+           
        except Exception as e:
            # This is the main exception handler for __init__
            self.logger.error(f"Critical error during MainWindow initialization: {str(e)}", exc_info=True)
            context = ErrorContext(
-               code="MAINWINDOW_INIT_CRITICAL_FAILURE",
+               code="MAINWINDOW_INIT_CRITICAL_FAILURE", 
                message=f"A critical error occurred during application window initialization: {str(e)}",
                details={"exception_type": type(e).__name__},
                severity=ErrorSeverity.CRITICAL,
@@ -160,35 +160,35 @@ class MainWindow(QMainWindow):
            # Window configuration
            self.setWindowTitle(f"{self.config.app_name} - v{self.config.app_version}")
            self.setGeometry(100, 100, self.config.window_width, self.config.window_height)
-
+           
            # Initialize theme manager
            self.theme_manager = ThemeManager(
-               config=self.config,
+               config=self.config, 
                resource_path_base=self.config.resources_dir
            )
            self.theme_manager.apply_theme(self.config.theme)
-
+           
            # Set application icon
            self._set_application_icon()
-
+           
            # Create main layout
            central_widget = QWidget()
            self.setCentralWidget(central_widget)
            main_layout = QHBoxLayout(central_widget)
-
+           
            # Create navigation panel
            nav_panel = self._create_navigation_panel()
            main_layout.addWidget(nav_panel)
-
+           
            # Create content area
            self.stacked_widget = QStackedWidget()
            main_layout.addWidget(self.stacked_widget, 1)
-
+           
            # Initialize status bar
            self.statusBar().showMessage("Ready")
-
+           
            self.logger.info("UI initialized successfully")
-
+           
        except Exception as e:
            self.logger.error(f"Failed to initialize UI: {e}", exc_info=True)
            raise
@@ -197,29 +197,29 @@ class MainWindow(QMainWindow):
        """Set application icon with fallback handling"""
        try:
            app_icon_path = get_resource_path(
-               self.config.get("APP_ICON_PATH", "icons/app_icon.png"),
+               self.config.get("APP_ICON_PATH", "icons/app_icon.png"), 
                self.config
            )
-
+           
            if app_icon_path and Path(app_icon_path).exists():
                self.setWindowIcon(QIcon(app_icon_path))
                self.logger.info(f"Application icon set from: {app_icon_path}")
            else:
                self.logger.warning(f"Application icon not found at: {app_icon_path}")
-
+               
        except Exception as e:
            self.logger.warning(f"Failed to set application icon: {e}")
 
    def _create_navigation_panel(self) -> QWidget:
        """Create the navigation panel with improved layout and PyQt6 updates"""
        nav_panel = QWidget()
-
+       
        nav_panel_width = 130
        nav_panel.setFixedWidth(nav_panel_width)
-
+       
        nav_layout = QVBoxLayout(nav_panel)
        nav_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
+       
        # Application title
        app_title_label = QLabel(self.config.app_name)
        app_title_font = QFont("Arial", 16, QFont.Weight.Bold)
@@ -227,19 +227,19 @@ class MainWindow(QMainWindow):
        app_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
        app_title_label.setWordWrap(True)
        nav_layout.addWidget(app_title_label)
-
+       
        # Version and status info
        version_label = QLabel(f"Version {self.config.app_version}")
        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
        version_label.setStyleSheet("color: gray; font-size: 10px;")
        nav_layout.addWidget(version_label)
-
+       
        # Navigation list
        self.nav_list = QListWidget()
        self.nav_list.itemClicked.connect(self._on_nav_item_selected)
-
+       
        self.nav_list.setViewMode(QListView.ViewMode.IconMode)
-
+       
        # Configure IconMode for vertical stacking with text below icons
        self.nav_list.setFlow(QListView.Flow.TopToBottom)
        self.nav_list.setWrapping(False)
@@ -252,35 +252,35 @@ class MainWindow(QMainWindow):
        grid_item_width = nav_panel_width - 16
        grid_item_height = icon_dimension + 30 + 10
        self.nav_list.setGridSize(QSize(grid_item_width, grid_item_height))
-
+       
        self.nav_list.setSpacing(8)
-
+       
        nav_layout.addWidget(self.nav_list)
-
+       
        # Service status panel
        status_panel = self._create_service_status_panel()
        nav_layout.addWidget(status_panel)
-
+       
        return nav_panel
 
    def _create_service_status_panel(self) -> QWidget:
        """Create service status monitoring panel"""
        status_panel = QWidget()
        status_layout = QVBoxLayout(status_panel)
-
+       
        status_title = QLabel("Service Status")
        status_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
        status_layout.addWidget(status_title)
-
+       
        # Service status indicators
        self.jd_status_label = QLabel("JD API: Checking...")
        self.sharepoint_status_label = QLabel("SharePoint: Checking...")
        self.database_status_label = QLabel("Database: Checking...")
-
+       
        status_layout.addWidget(self.jd_status_label)
        status_layout.addWidget(self.sharepoint_status_label)
        status_layout.addWidget(self.database_status_label)
-
+       
        return status_panel
 
    def _setup_periodic_tasks(self):
@@ -288,11 +288,11 @@ class MainWindow(QMainWindow):
        # Service status check every 5 minutes
        self.status_check_timer.timeout.connect(self._check_service_status)
        self.status_check_timer.start(300000)
-
+       
        # Performance report every 30 minutes
        self.performance_report_timer.timeout.connect(self._generate_performance_report)
        self.performance_report_timer.start(1800000)
-
+       
        self.logger.info("Periodic tasks configured")
 
    async def _check_service_status_async(self, *args, **kwargs):
@@ -315,27 +315,27 @@ class MainWindow(QMainWindow):
                    jd_status = False
            else:
                jd_status = False
-
+           
            self.service_status["jd_api"] = jd_status
            self.service_status_changed.emit("jd_api", jd_status)
-
+           
            # Check SharePoint status
            if self.sharepoint_manager_service and hasattr(self.sharepoint_manager_service, 'is_operational'):
                sp_status = self.sharepoint_manager_service.is_operational
            else:
                sp_status = False
-
+           
            self.service_status["sharepoint"] = sp_status
            self.service_status_changed.emit("sharepoint", sp_status)
-
+           
            # Check database status (if configured)
            db_status = True
            if hasattr(self.config, 'database_url') and self.config.database_url:
                pass
-
+           
            self.service_status["database"] = db_status
            self.service_status_changed.emit("database", db_status)
-
+           
        except Exception as e:
            self.logger.error(f"Error checking service status: {e}", exc_info=True)
 
@@ -360,15 +360,15 @@ class MainWindow(QMainWindow):
        try:
            report = self.performance_monitor.get_performance_report()
            slow_functions = self.performance_monitor.get_slow_functions(threshold=0.5)
-
+           
            if slow_functions:
                self.logger.warning(f"Slow functions detected: {slow_functions}")
-
+           
            if report and isinstance(report, dict):
                try:
                    total_calls = sum(
-                       data.get('call_count', 0)
-                       for data in report.values()
+                       data.get('call_count', 0) 
+                       for data in report.values() 
                        if isinstance(data, dict) and 'call_count' in data
                    )
                    self.logger.info(f"Performance summary: {len(report)} functions monitored, {total_calls} total calls")
@@ -377,7 +377,7 @@ class MainWindow(QMainWindow):
                    self.logger.info(f"Performance summary: {len(report)} functions monitored")
            else:
                self.logger.info("Performance report not available or empty")
-
+           
        except Exception as e:
            self.logger.error(f"Error generating performance report: {e}", exc_info=True)
 
@@ -386,31 +386,31 @@ class MainWindow(QMainWindow):
        try:
            item = QListWidgetItem(name)
            item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter)
-
+           
            actual_icon_name = icon_name
            if hasattr(widget, 'get_icon_name') and callable(widget.get_icon_name):
                mod_icon_name = widget.get_icon_name()
                if mod_icon_name:
                    actual_icon_name = mod_icon_name
-
+           
            if actual_icon_name:
                icon_path = self.module_icons_paths.get(actual_icon_name)
                if not icon_path:
                    icons_dir = get_resource_path("icons", self.config)
                    icon_path = os.path.join(icons_dir, actual_icon_name)
-
+               
                if icon_path and os.path.exists(icon_path):
                    item.setIcon(QIcon(icon_path))
                    self.logger.debug(f"Icon loaded for module '{name}': {actual_icon_name}")
                else:
                    self.logger.warning(f"Icon not found for module '{name}': {actual_icon_name}")
-
+           
            self.nav_list.addItem(item)
            self.stacked_widget.addWidget(widget)
            self.modules[name] = widget
-
+           
            self.logger.debug(f"Module '{name}' added successfully")
-
+           
        except Exception as e:
            self.logger.error(f"Failed to add module '{name}': {e}", exc_info=True)
 
@@ -419,9 +419,9 @@ class MainWindow(QMainWindow):
        try:
            self.modules.clear()
            self.module_icons_paths.clear()
-
+           
            self._preload_module_icons()
-
+           
            modules_to_load = [
                ("home_dashboard", self._create_home_page_dashboard_view, "Home Dashboard"),
                ("deal_form", self._create_deal_form_view, "New Deal"),
@@ -435,7 +435,7 @@ class MainWindow(QMainWindow):
                ("invoice", self._create_invoice_view, "Invoice"),
                ("app_settings", self._create_app_settings_view, "App Settings"),
            ]
-
+           
            loaded_modules = 0
            for module_key, module_factory, display_name in modules_to_load:
                try:
@@ -448,14 +448,14 @@ class MainWindow(QMainWindow):
 
                    else:
                        self.logger.warning(f"Module factory returned None for: {module_key}")
-
+                       
                except Exception as e:
                    self.logger.error(f"Failed to load module '{module_key}': {e}", exc_info=True)
-
+           
            self.logger.info(f"Loaded {loaded_modules}/{len(modules_to_load)} modules successfully")
-
+           
            self._set_default_view()
-
+           
        except Exception as e:
            self.logger.error(f"Error within _load_modules method (not during initial call): {str(e)}", exc_info=True)
            context = ErrorContext(
@@ -478,7 +478,7 @@ class MainWindow(QMainWindow):
            "calculator_icon.png", "jd_quote_icon.png", "invoice_icon.png",
            "settings_icon.png"
        ]
-
+       
        for icon_file in known_icon_files:
            try:
                path = get_resource_path(os.path.join("icons", icon_file), self.config)
@@ -639,7 +639,7 @@ class MainWindow(QMainWindow):
            if self.nav_list.count() > 0:
                default_module_title = "Home Dashboard"
                items = self.nav_list.findItems(default_module_title, Qt.MatchFlag.MatchExactly)
-
+               
                if items:
                    self.nav_list.setCurrentItem(items[0])
                    self._on_nav_item_selected(items[0])
@@ -650,7 +650,7 @@ class MainWindow(QMainWindow):
                    self.logger.warning(f"Default module '{default_module_title}' not found. Using first available module.")
            else:
                self.logger.warning("No modules available for default view")
-
+               
        except Exception as e:
            self.logger.error(f"Failed to set default view: {e}", exc_info=True)
 
@@ -661,10 +661,10 @@ class MainWindow(QMainWindow):
            if module_name in self.modules:
                current_module_widget = self.modules[module_name]
                self.stacked_widget.setCurrentWidget(current_module_widget)
-
+               
                self.logger.debug(f"Switched to module: {module_name}")
                self.show_status_message(f"Viewing: {module_name}", "info")
-
+               
                if hasattr(current_module_widget, 'load_module_data') and callable(current_module_widget.load_module_data):
                    try:
                        current_module_widget.load_module_data()
@@ -673,7 +673,7 @@ class MainWindow(QMainWindow):
                        self.show_status_message(f"Warning: Failed to load data for {module_name}", "warning")
            else:
                self.logger.error(f"Module '{module_name}' not found in modules dictionary")
-
+               
        except Exception as e:
            self.logger.error(f"Error switching to module: {e}", exc_info=True)
 
@@ -681,10 +681,10 @@ class MainWindow(QMainWindow):
        """Show status message with enhanced logging"""
        try:
            self.statusBar().showMessage(message, duration if duration > 0 else 0)
-
+           
            log_func = getattr(self.logger, level, self.logger.info)
            log_func(f"Status: {message}")
-
+           
        except Exception as e:
            self.logger.error(f"Error showing status message: {e}")
 
@@ -692,19 +692,19 @@ class MainWindow(QMainWindow):
        """Navigate to invoice view with enhanced error handling"""
        try:
            self.logger.info(f"Navigating to invoice view for quote ID: {quote_id}")
-
+           
            invoice_module_key = None
            invoice_module = None
-
+           
            for name, module_instance in self.modules.items():
                if isinstance(module_instance, InvoiceModuleView):
                    invoice_module_key = name
                    invoice_module = module_instance
                    break
-
+           
            if not invoice_module:
                raise ValidationError("invoice_module", "Invoice module not available")
-
+           
            items = self.nav_list.findItems(invoice_module_key, Qt.MatchFlag.MatchExactly)
            if items:
                self.nav_list.setCurrentItem(items[0])
@@ -713,12 +713,12 @@ class MainWindow(QMainWindow):
                self.stacked_widget.setCurrentWidget(invoice_module)
                if hasattr(invoice_module, 'load_module_data'):
                    invoice_module.load_module_data()
-
+           
            if hasattr(invoice_module, 'initiate_invoice_from_quote'):
                invoice_module.initiate_invoice_from_quote(quote_id, dealer_account_no)
-
+           
            self.show_status_message(f"Viewing invoice for Quote ID: {quote_id}", "info")
-
+           
        except Exception as e:
            error_msg = f"Failed to navigate to invoice for quote {quote_id}: {str(e)}"
            self.logger.error(error_msg, exc_info=True)
@@ -743,15 +743,15 @@ class MainWindow(QMainWindow):
                "Would you like to authenticate now?",
                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
            )
-
+           
            if result == QMessageBox.StandardButton.Yes:
                from app.views.dialogs.jd_auth_dialog import JDAuthDialog
                auth_dialog = JDAuthDialog(self.jd_auth_manager_service, self)
                auth_dialog.auth_completed.connect(self.on_jd_auth_completed)
                return auth_dialog.exec() == QDialog.DialogCode.Accepted
-
+           
            return False
-
+           
        except ImportError:
            self.logger.error("JDAuthDialog not available")
            QMessageBox.critical(self, "Error", "Authentication dialog is not available.")
@@ -766,10 +766,10 @@ class MainWindow(QMainWindow):
            if success:
                self.logger.info("JD API authentication completed successfully")
                self.show_status_message("John Deere API connection established", "info")
-
+               
                self.service_status["jd_api"] = True
                self.service_status_changed.emit("jd_api", True)
-
+               
                if self.jd_quote_integration_service:
                    self.jd_quote_integration_service.is_operational = True
                self.logger.info("Authentication successful, re-checking JD service status.")
@@ -777,10 +777,10 @@ class MainWindow(QMainWindow):
            else:
                self.logger.warning(f"JD API authentication failed: {message}")
                self.show_status_message("John Deere API authentication failed", "warning")
-
+               
                self.service_status["jd_api"] = False
                self.service_status_changed.emit("jd_api", False)
-
+               
        except Exception as e:
            self.logger.error(f"Error handling JD auth completion: {e}", exc_info=True)
 
@@ -791,7 +791,7 @@ class MainWindow(QMainWindow):
                self.check_jd_authentication()
            else:
                self.logger.warning(f"Unknown authentication type requested: {auth_type}")
-
+               
        except Exception as e:
            self.logger.error(f"Error handling authentication requirement: {e}", exc_info=True)
 
@@ -800,7 +800,7 @@ class MainWindow(QMainWindow):
        try:
            status_text = "✓ Online" if is_operational else "✗ Offline"
            status_color = "green" if is_operational else "red"
-
+           
            if service_name == "jd_api":
                self.jd_status_label.setText(f"JD API: {status_text}")
                self.jd_status_label.setStyleSheet(f"color: {status_color};")
@@ -810,9 +810,9 @@ class MainWindow(QMainWindow):
            elif service_name == "database":
                self.database_status_label.setText(f"Database: {status_text}")
                self.database_status_label.setStyleSheet(f"color: {status_color};")
-
+           
            self.logger.debug(f"Service status updated: {service_name} = {is_operational}")
-
+           
        except Exception as e:
            self.logger.error(f"Error updating service status display: {e}", exc_info=True)
 
@@ -830,29 +830,29 @@ class MainWindow(QMainWindow):
                return
 
            self.last_error = error
-
+           
            log_message = error.context.message
            if error.context.details:
                log_message += f" Details: {error.context.details}"
-
+           
            self.logger.critical(
-               f"Critical error ({error.context.code}): {log_message}",
+               f"Critical error ({error.context.code}): {log_message}", 
                extra={"error_context": error.context}
            )
-
+           
            user_msg = error.context.user_message or error.context.message
-
+           
            QMessageBox.critical(
                self,
                "Critical Application Error",
                f"A critical error has occurred:\n\n{user_msg}\n\n"
                f"The application may not function properly. Please restart the application."
            )
-
+           
            if error.context.severity == ErrorSeverity.CRITICAL:
                self.logger.critical("Initiating graceful shutdown due to CRITICAL error severity.")
                QTimer.singleShot(1000, self.close)
-
+               
        except Exception as e_handler:
            self.logger.error(f"Exception in _handle_critical_error: {e_handler}", exc_info=True)
            try:
@@ -866,13 +866,13 @@ class MainWindow(QMainWindow):
        """Enhanced close event with proper cleanup"""
        try:
            self.logger.info("MainWindow closing. Performing enhanced cleanup...")
-
+           
            # Stop periodic timers
            if hasattr(self, 'status_check_timer') and self.status_check_timer:
                self.status_check_timer.stop()
            if hasattr(self, 'performance_report_timer') and self.performance_report_timer:
                self.performance_report_timer.stop()
-
+           
            # Defensive block for task_manager shutdown
            if self.task_manager:
                self.logger.info(f"Attempting to shutdown task_manager of type: {type(self.task_manager)}")
@@ -903,23 +903,23 @@ class MainWindow(QMainWindow):
                        self.logger.warning("No standard fallback cleanup method found for the task manager.")
            else:
                self.logger.warning("Task manager (self.task_manager) is None during closeEvent. Skipping shutdown sequence.")
-
+           
            # Original additional cleanup items from the file
            if hasattr(self, '_generate_performance_report') and callable(getattr(self, '_generate_performance_report')):
                try:
                    self._generate_performance_report()
                except Exception as e_perf:
                    self.logger.warning(f"Error generating final performance report: {e_perf}", exc_info=True)
-
+           
            if hasattr(self.config, 'save_user_preferences') and callable(getattr(self.config, 'save_user_preferences')):
                try:
                    self.config.save_user_preferences()
                except Exception as e_prefs:
                    self.logger.warning(f"Error saving user preferences: {e_prefs}", exc_info=True)
-
+           
            self.logger.info("MainWindow cleanup sequence completed.")
            event.accept()
-
+           
        except Exception as e_close_event: # Renamed 'e' to avoid clash with potential 'e' in nested blocks
            self.logger.error(f"Error during application shutdown sequence in closeEvent: {e_close_event}", exc_info=True)
            event.accept() # Accept event even if cleanup fails to allow app to close
@@ -932,34 +932,34 @@ async def run_application():
    """
    try:
        config = get_config()
-
+       
        setup_logging(config)
        logger.info(f"Starting {config.app_name} v{config.app_version}")
        logger.info(f"Environment: {config.environment}")
        logger.info(f"Debug mode: {config.debug}")
-
+       
        logger.info("Starting resource checks...")
        check_resources(config)
-
+       
        app_id = config.get("APP_USER_MODEL_ID", f"BRIDeal.{config.app_version}")
        set_app_user_model_id(app_id)
-
+       
        secure_config = SecureConfig(config.app_name)
        logger.info("Secure configuration initialized")
-
+       
        performance_monitor = get_performance_monitor()
        http_client_manager = get_http_client_manager()
        logger.info("Performance monitoring initialized")
-
+       
        app_auth_service = AppAuthService(config=config)
        logger.info(f"Current application user: {app_auth_service.get_current_user_name()}")
-
+       
        cache_handler = CacheHandler(config=config)
        token_handler = TokenHandler(config=config, cache_handler=cache_handler)
        task_manager = get_task_manager()
-
+       
        sharepoint_service_instance = await _initialize_sharepoint_service()
-
+       
        quote_builder = QuoteBuilder(config=config)
        jd_auth_manager = JDAuthManager(config=config, token_handler=token_handler)
        jd_quote_api_client = JDQuoteApiClient(config=config, auth_manager=jd_auth_manager)
@@ -969,28 +969,28 @@ async def run_application():
            maintain_quotes_api=maintain_quotes_api,
            quote_builder=quote_builder
        )
-
+       
        try:
            await _fix_authentication_config(config, jd_auth_manager)
        except Exception as e:
            logger.warning(f"Error fixing authentication config: {e}")
-
+       
        qt_app = QApplication.instance()
        if qt_app is None:
            qt_app = QApplication(sys.argv)
-
+       
        qt_app.setApplicationName(config.app_name)
        qt_app.setApplicationVersion(config.app_version)
        qt_app.setOrganizationName(config.get("ORGANIZATION_NAME", "BRIDeal"))
-
+       
        await _set_qt_application_icon(qt_app, config)
-
+       
        splash_screen = await _create_splash_screen(qt_app, config)
-
+       
        try:
            splash_screen.showMessage("Loading main interface...", Qt.AlignmentFlag.AlignBottom)
            qt_app.processEvents()
-
+           
            main_window = MainWindow(
                config=config,
                cache_handler=cache_handler,
@@ -1001,23 +1001,23 @@ async def run_application():
                jd_auth_manager=jd_auth_manager,
                jd_quote_integration_service=jd_quote_integration_service
            )
-
+           
            main_window.show()
            splash_screen.finish(main_window)
-
+           
            logger.info("Application startup completed successfully")
-
+           
            exit_code = qt_app.exec()
-
+           
            await _cleanup_application_resources()
-
+           
            logger.info(f"Application exited with code: {exit_code}")
            return exit_code
-
+           
        except Exception as e:
            splash_screen.close()
            logger.critical(f"Failed to initialize main window: {e}", exc_info=True)
-
+           
            QMessageBox.critical(
                None,
                "Application Initialization Error",
@@ -1025,15 +1025,15 @@ async def run_application():
                "Please check the logs for more details and restart the application."
            )
            return 1
-
+           
    except Exception as e:
        logger.critical(f"Critical application startup failure: {e}", exc_info=True)
-
+       
        try:
            app_temp = QApplication.instance()
            if not app_temp:
                app_temp = QApplication(sys.argv)
-
+           
            QMessageBox.critical(
                None,
                "Critical Application Failure",
@@ -1043,19 +1043,19 @@ async def run_application():
        except Exception as dialog_error:
            print(f"CRITICAL ERROR: {e}", file=sys.stderr)
            print(f"Failed to show error dialog: {dialog_error}", file=sys.stderr)
-
+       
        return 1
 
 
 async def _initialize_sharepoint_service() -> Optional[SharePointManagerService]:
    """Initialize SharePoint service with proper error handling"""
    sharepoint_service_instance = None
-
+   
    try:
        if SharePointManagerService:
            logger.info("Attempting to initialize SharePoint service...")
            sharepoint_service_instance = SharePointManagerService()
-
+           
            if hasattr(sharepoint_service_instance, 'is_operational'):
                if sharepoint_service_instance.is_operational:
                    logger.info("SharePoint service initialized and operational")
@@ -1065,11 +1065,11 @@ async def _initialize_sharepoint_service() -> Optional[SharePointManagerService]
                    logger.warning("SharePoint service lacks operational status indicator")
        else:
            logger.error("SharePoint service class not available")
-
+           
    except Exception as e:
        logger.error(f"Failed to initialize SharePoint service: {e}", exc_info=True)
        sharepoint_service_instance = None
-
+   
    return sharepoint_service_instance
 
 
@@ -1077,21 +1077,21 @@ async def _fix_authentication_config(config: BRIDealConfig, jd_auth_manager: JDA
    """Fix potential authentication configuration issues"""
    try:
        from app.services.integrations.jd_auth_manager_improvements import (
-           check_and_fix_redirect_uri,
+           check_and_fix_redirect_uri, 
            ensure_auth_persistence
        )
-
+       
        redirect_uri_fixed = check_and_fix_redirect_uri(config)
        persistence_enabled = ensure_auth_persistence(config)
-
+       
        if redirect_uri_fixed or persistence_enabled:
            logger.info("Fixed John Deere API authentication configuration issues")
-
+       
        if jd_auth_manager and jd_auth_manager.is_operational:
            logger.info("JDAuthManager is operational. Token status will be checked by MainWindow.")
        else:
            logger.warning("JDAuthManager is not operational or not available.")
-
+       
    except ImportError:
        logger.warning("JD auth improvements module not available")
    except Exception as e:
@@ -1103,13 +1103,13 @@ async def _set_qt_application_icon(qt_app: QApplication, config: BRIDealConfig):
    try:
        icon_path_config = config.get("APP_ICON_PATH", "icons/app_icon.png")
        icon_abs_path = get_resource_path(icon_path_config, config)
-
+       
        if icon_abs_path and os.path.exists(icon_abs_path):
            qt_app.setWindowIcon(QIcon(icon_abs_path))
            logger.info(f"Qt application icon set from: {icon_abs_path}")
        else:
            logger.warning(f"Qt application icon not found: {icon_abs_path}")
-
+           
    except Exception as e:
        logger.warning(f"Failed to set Qt application icon: {e}")
 
@@ -1119,7 +1119,7 @@ async def _create_splash_screen(qt_app: QApplication, config: BRIDealConfig) -> 
    try:
        splash_image_config = config.get("SPLASH_IMAGE_MAIN", "images/splash_main.png")
        splash_image_path = get_resource_path(splash_image_config, config)
-
+       
        if splash_image_path and os.path.exists(splash_image_path):
            pixmap = QPixmap(splash_image_path)
            splash_screen = QSplashScreen(pixmap)
@@ -1128,7 +1128,7 @@ async def _create_splash_screen(qt_app: QApplication, config: BRIDealConfig) -> 
            pixmap = QPixmap(400, 300)
            pixmap.fill(Qt.GlobalColor.darkBlue)
            splash_screen = QSplashScreen(pixmap)
-
+       
        splash_screen.show()
        splash_screen.showMessage(
            f"Starting {config.app_name} v{config.app_version}...",
@@ -1136,9 +1136,9 @@ async def _create_splash_screen(qt_app: QApplication, config: BRIDealConfig) -> 
            Qt.GlobalColor.white
        )
        qt_app.processEvents()
-
+       
        return splash_screen
-
+       
    except Exception as e:
        logger.warning(f"Failed to create splash screen: {e}")
        pixmap = QPixmap(400, 200)
@@ -1150,11 +1150,11 @@ async def _cleanup_application_resources():
    """Cleanup application resources"""
    try:
        logger.info("Cleaning up application resources...")
-
+       
        await cleanup_performance_resources()
-
+       
        logger.info("Application resource cleanup completed")
-
+       
    except Exception as e:
        logger.error(f"Error during resource cleanup: {e}", exc_info=True)
 
@@ -1165,23 +1165,23 @@ def main():
        level=logging.INFO,
        format='%(asctime)s - %(levelname)s - PRE_CONFIG - %(message)s'
    )
-
+   
    try:
        exit_code = asyncio.run(run_application())
        sys.exit(exit_code)
-
+       
    except KeyboardInterrupt:
        logger.info("Application interrupted by user")
        sys.exit(0)
    except Exception as e:
        critical_logger = logging.getLogger("critical_launch_error")
        critical_logger.critical(f"Unhandled exception during application launch: {e}", exc_info=True)
-
+       
        try:
            app_temp = QApplication.instance()
            if not app_temp:
                app_temp = QApplication(sys.argv)
-
+           
            QMessageBox.critical(
                None,
                "Critical Application Failure",
@@ -1191,7 +1191,7 @@ def main():
        except Exception as dialog_error:
            print(f"CRITICAL ERROR: {e}", file=sys.stderr)
            print(f"Failed to show error dialog: {dialog_error}", file=sys.stderr)
-
+       
        sys.exit(1)
 
 
