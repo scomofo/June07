@@ -178,8 +178,8 @@ class GetQuotesView(BaseViewModule):
             dealer_racf_id,
             start_date,
             end_date,
-            on_result=self._handle_fetch_quotes_response_adapter,
-            on_error=self._handle_fetch_quotes_error_adapter
+            on_result=self._handle_fetch_quotes_response_adapter, 
+            on_error=self._handle_fetch_quotes_error_adapter 
         )
 
     def get_icon_name(self) -> str:
