@@ -114,7 +114,7 @@ class AsyncWorker(QThread):
                 self.result_ready.emit(result)
                 
         except Exception as e:
-            logger.error(f"AsyncWorker error: {e}", exc_info=True)
+            logger.error(f"AsyncWorker error in task {getattr(self.async_fn, '__name__', 'unknown')}: {e}", exc_info=True)
             self.error_occurred.emit(e)
         finally:
             if self._loop:

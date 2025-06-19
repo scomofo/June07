@@ -342,14 +342,14 @@ class MainWindow(QMainWindow):
    def _check_service_status(self):
        """Check service status (Qt slot)"""
        try:
-           # The `callback` parameter is now handled directly by `run_async_task`
-           self.task_manager.run_async_task(
-               self._check_service_status_async,
-               "Service Status Check" # Positional argument for the task
-           )
-           self.logger.debug("Started service status check task.") # Removed task_id as it's not directly used for logging here
+           self.logger.warning("Temporarily disabling periodic service status check due to issues with AsyncWorker.")
+           # self.task_manager.run_async_task(
+           #     self._check_service_status_async,
+           #     "Service Status Check" # Positional argument for the task
+           # )
+           # self.logger.debug("Started service status check task.") # Also comment out related logging if task is disabled
        except Exception as e:
-           self.logger.error(f"Error starting service status check: {e}", exc_info=True)
+           self.logger.error(f"Error in (now disabled) service status check setup: {e}", exc_info=True) # Adjust log if needed
 
    def _check_initial_service_status(self):
        """Check service status on startup"""
@@ -867,29 +867,62 @@ class MainWindow(QMainWindow):
        try:
            self.logger.info("MainWindow closing. Performing enhanced cleanup...")
 
-           self.status_check_timer.stop()
-           self.performance_report_timer.stop()
+           # Stop periodic timers
+           if hasattr(self, 'status_check_timer') and self.status_check_timer:
+               self.status_check_timer.stop()
+           if hasattr(self, 'performance_report_timer') and self.performance_report_timer:
+               self.performance_report_timer.stop()
 
+           # Defensive block for task_manager shutdown
            if self.task_manager:
-               self.task_manager.shutdown()
+               self.logger.info(f"Attempting to shutdown task_manager of type: {type(self.task_manager)}")
+               if hasattr(self.task_manager, 'shutdown') and callable(getattr(self.task_manager, 'shutdown')):
+                   self.logger.info("Task manager has callable 'shutdown' method. Calling it.")
+                   self.task_manager.shutdown()
+                   self.logger.info("task_manager.shutdown() called successfully.")
+               else:
+                   self.logger.warning(f"Task manager (type: {type(self.task_manager)}) does not have a callable 'shutdown' method. Attempting fallback cleanup.")
+                   if hasattr(self.task_manager, 'thread_pool') and hasattr(self.task_manager.thread_pool, 'waitForDone'):
+                       self.logger.info("Attempting to call waitForDone on task_manager.thread_pool as a fallback.")
+                       try:
+                           self.task_manager.thread_pool.waitForDone(2000)  # Wait up to 2 seconds
+                           self.logger.info("task_manager.thread_pool.waitForDone() fallback completed.")
+                       except Exception as e_pool_wait:
+                           self.logger.error(f"Error during task_manager.thread_pool.waitForDone() fallback: {e_pool_wait}", exc_info=True)
+                   elif hasattr(self.task_manager, 'cancel_all_tasks') and callable(getattr(self.task_manager, 'cancel_all_tasks')):
+                       self.logger.info("Task manager has 'cancel_all_tasks'. Calling it as part of fallback.")
+                       try:
+                           self.task_manager.cancel_all_tasks()
+                           if hasattr(self.task_manager, 'thread_pool') and hasattr(self.task_manager.thread_pool, 'waitForDone'):
+                               self.logger.info("Attempting to call waitForDone on task_manager.thread_pool after cancel_all_tasks.")
+                               self.task_manager.thread_pool.waitForDone(2000)
+                               self.logger.info("task_manager.thread_pool.waitForDone() after cancel_all_tasks completed.")
+                       except Exception as e_cancel_fallback:
+                           self.logger.error(f"Error during cancel_all_tasks fallback: {e_cancel_fallback}", exc_info=True)
+                   else:
+                       self.logger.warning("No standard fallback cleanup method found for the task manager.")
+           else:
+               self.logger.warning("Task manager (self.task_manager) is None during closeEvent. Skipping shutdown sequence.")
 
-           try:
-               self._generate_performance_report()
-           except Exception as e:
-               self.logger.warning(f"Error generating final performance report: {e}")
+           # Original additional cleanup items from the file
+           if hasattr(self, '_generate_performance_report') and callable(getattr(self, '_generate_performance_report')):
+               try:
+                   self._generate_performance_report()
+               except Exception as e_perf:
+                   self.logger.warning(f"Error generating final performance report: {e_perf}", exc_info=True)
 
-           try:
-               if hasattr(self.config, 'save_user_preferences'):
+           if hasattr(self.config, 'save_user_preferences') and callable(getattr(self.config, 'save_user_preferences')):
+               try:
                    self.config.save_user_preferences()
-           except Exception as e:
-               self.logger.warning(f"Error saving user preferences: {e}")
+               except Exception as e_prefs:
+                   self.logger.warning(f"Error saving user preferences: {e_prefs}", exc_info=True)
 
-           self.logger.info("MainWindow cleanup completed successfully")
+           self.logger.info("MainWindow cleanup sequence completed.")
            event.accept()
 
-       except Exception as e:
-           self.logger.error(f"Error during application shutdown: {e}", exc_info=True)
-           event.accept()
+       except Exception as e_close_event: # Renamed 'e' to avoid clash with potential 'e' in nested blocks
+           self.logger.error(f"Error during application shutdown sequence in closeEvent: {e_close_event}", exc_info=True)
+           event.accept() # Accept event even if cleanup fails to allow app to close
 
 
 async def run_application():
