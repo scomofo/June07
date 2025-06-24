@@ -1,6 +1,6 @@
 # app/services/api_clients/maintain_quotes_api.py
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import asyncio # Added import for asyncio for async methods
 
 from app.core.result import Result
@@ -164,7 +164,7 @@ class MaintainQuotesAPI:
             # Assuming jd_quote_api_client has a method to handle such a query
             # This method should ideally return a Result object from jd_quote_client
             # For this fix, let's assume get_quotes is the method in JDQuoteApiClient
-            result: Result[List[Dict], BRIDealException] = await self.jd_quote_api_client.list_quotes(filters=criteria)
+            result: Result[Dict, BRIDealException] = await self.jd_quote_api_client._request("POST", "quotes", data=criteria)
             return result
         except Exception as e:
             logger.error(f"MaintainQuotesAPI: Unexpected exception while fetching quotes: {e}", exc_info=True)
