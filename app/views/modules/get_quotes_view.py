@@ -51,10 +51,12 @@ class GetQuotesView(BaseViewModule):
         form_layout.addRow("Dealer RACF ID:", self.dealer_racf_id_edit)
 
         self.start_date_edit = QLineEdit()
+        self.start_date_edit.setText("01/01/2025")
         self.start_date_edit.setPlaceholderText("MM/DD/YYYY")
         form_layout.addRow("Start Modified Date:", self.start_date_edit)
 
         self.end_date_edit = QLineEdit()
+        self.end_date_edit.setText("06/20/2025")
         self.end_date_edit.setPlaceholderText("MM/DD/YYYY")
         form_layout.addRow("End Modified Date:", self.end_date_edit)
 
