@@ -19,7 +19,25 @@ class JDQuoteApiClient:
     def __init__(self, config, auth_manager: JDAuthManager):
         self.config = config
         self.auth_manager = auth_manager
-        self.base_url = config.get("JD_API_BASE_URL", "https://api.deere.com")
+        # Prioritize the specific quote API base URL if available
+        self.base_url = config.get("BRIDEAL_JD_QUOTE2_API_BASE_URL")
+        if not self.base_url:
+            # Fallback to the general JD_API_BASE_URL
+            self.base_url = config.get("JD_API_BASE_URL")
+            if self.base_url:
+                logger.warning(
+                    "JDQuoteApiClient is using fallback JD_API_BASE_URL. "
+                    "For quote-specific operations, ensure BRIDEAL_JD_QUOTE2_API_BASE_URL is configured."
+                )
+            else:
+                # Last resort: hardcoded default
+                self.base_url = "https://api.deere.com"
+                logger.warning(
+                    f"JDQuoteApiClient is using hardcoded default base URL: {self.base_url}. "
+                    "Ensure BRIDEAL_JD_QUOTE2_API_BASE_URL or JD_API_BASE_URL is configured in .env or config."
+                )
+
+        logger.info(f"JDQuoteApiClient initialized with base_url: {self.base_url}")
         self.timeout = aiohttp.ClientTimeout(total=30)
         self.session: Optional[aiohttp.ClientSession] = None
         
