@@ -194,9 +194,15 @@ class JDMaintainQuoteApiClient:
         endpoint = f"/om/maintainquote/api/v1/quotes/{quote_id}/equipments"
         return await self._request("DELETE", endpoint, params=params)
 
-    async def get_maintain_quote_details(self, quote_id: str) -> Result[Dict, BRIDealException]:
+    async def get_maintain_quote_details(self, quote_id: str, dealer_account_no: Optional[str] = None, po_number: Optional[int] = None) -> Result[Dict, BRIDealException]:
         endpoint = f"/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details"
-        return await self._request("GET", endpoint)
+        request_params: Dict[str, Any] = {}
+        if dealer_account_no:
+            request_params["dealerAccountNo"] = dealer_account_no
+        if po_number is not None: # po_number can be 0, so check for None
+            request_params["poNumber"] = po_number
+
+        return await self._request("GET", endpoint, params=request_params if request_params else None)
 
     async def create_dealer_quote(self, dealer_id: str, quote_data: Dict) -> Result[Dict, BRIDealException]:
         endpoint = f"/om/maintainquote/api/v1/dealers/{dealer_id}/quotes"

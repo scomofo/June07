@@ -135,6 +135,84 @@ class TestJDMaintainQuoteApiClient:
         assert jd_quote_client.auth_manager.refresh_token.call_count == 1
         assert mock_request.call_count == 2 # Original call + retry
 
+    # New tests for get_maintain_quote_details with optional params
+    @patch("aiohttp.ClientSession.request")
+    async def test_get_maintain_quote_details_with_dealer_account_no(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
+        quote_id = "test_quote_dan"
+        dealer_acc_no = "DLR12345"
+        expected_response_data = {"quoteId": quote_id, "dealerAccountNo": dealer_acc_no}
+        mock_request.return_value = await self.mock_response(200, json_data=expected_response_data)
+
+        result = await jd_quote_client.get_maintain_quote_details(quote_id, dealer_account_no=dealer_acc_no)
+
+        assert result.is_success()
+        assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
+        mock_request.assert_called_once_with(
+            "GET",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
+            headers=expected_headers,
+            params={"dealerAccountNo": dealer_acc_no}
+        )
+
+    @patch("aiohttp.ClientSession.request")
+    async def test_get_maintain_quote_details_with_po_number(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
+        quote_id = "test_quote_ponum"
+        po_num = 98765
+        expected_response_data = {"quoteId": quote_id, "poNumber": po_num}
+        mock_request.return_value = await self.mock_response(200, json_data=expected_response_data)
+
+        result = await jd_quote_client.get_maintain_quote_details(quote_id, po_number=po_num)
+
+        assert result.is_success()
+        assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
+        mock_request.assert_called_once_with(
+            "GET",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
+            headers=expected_headers,
+            params={"poNumber": po_num}
+        )
+
+    @patch("aiohttp.ClientSession.request")
+    async def test_get_maintain_quote_details_with_po_number_zero(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
+        quote_id = "test_quote_ponum_zero"
+        po_num = 0 # Testing with 0 as a valid PO number
+        expected_response_data = {"quoteId": quote_id, "poNumber": po_num}
+        mock_request.return_value = await self.mock_response(200, json_data=expected_response_data)
+
+        result = await jd_quote_client.get_maintain_quote_details(quote_id, po_number=po_num)
+
+        assert result.is_success()
+        assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
+        mock_request.assert_called_once_with(
+            "GET",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
+            headers=expected_headers,
+            params={"poNumber": po_num}
+        )
+
+    @patch("aiohttp.ClientSession.request")
+    async def test_get_maintain_quote_details_with_all_params(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
+        quote_id = "test_quote_all_params"
+        dealer_acc_no = "DLRXYZ"
+        po_num = 12300
+        expected_response_data = {"quoteId": quote_id, "dealerAccountNo": dealer_acc_no, "poNumber": po_num}
+        mock_request.return_value = await self.mock_response(200, json_data=expected_response_data)
+
+        result = await jd_quote_client.get_maintain_quote_details(quote_id, dealer_account_no=dealer_acc_no, po_number=po_num)
+
+        assert result.is_success()
+        assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
+        mock_request.assert_called_once_with(
+            "GET",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
+            headers=expected_headers,
+            params={"dealerAccountNo": dealer_acc_no, "poNumber": po_num}
+        )
+
     # Test for a new method: get_quotes
     @patch("aiohttp.ClientSession.request")
     async def test_get_quotes_success(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
