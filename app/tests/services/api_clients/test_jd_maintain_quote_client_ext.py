@@ -1,5 +1,7 @@
 import pytest
+import pytest_asyncio # Added for explicit async fixture
 import asyncio
+import json # Added missing import
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.core.config import BRIDealConfig
@@ -25,12 +27,12 @@ def mock_auth_manager():
     auth_manager.refresh_token = AsyncMock(return_value=Result.success(None))
     return auth_manager
 
-@pytest.fixture
+@pytest_asyncio.fixture(scope="function") # Changed to pytest_asyncio.fixture
 async def jd_quote_client(mock_config, mock_auth_manager):
     client = JDMaintainQuoteApiClient(config=mock_config, auth_manager=mock_auth_manager)
     await client._ensure_session() # Ensure session is created for tests
     yield client
-    await client.close() # Ensure session is closed after tests
+    await client._close_session() # Ensure session is closed after tests, was client.close()
 
 @pytest.mark.asyncio
 class TestJDMaintainQuoteApiClient:
@@ -83,14 +85,18 @@ class TestJDMaintainQuoteApiClient:
     async def test_get_maintain_quote_details_auth_error(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
         quote_id = "test_quote_789"
         # First call to _get_headers fails
-        jd_quote_client.auth_manager.get_access_token = AsyncMock(return_value=Result.failure(BRIDealException("Auth failed")))
+        # Using direct message and severity for BRIDealException
+        auth_failure_exception = BRIDealException(message="Auth failed", severity=ErrorSeverity.CRITICAL, details={"reason": "mocked_auth_failure"})
+        jd_quote_client.auth_manager.get_access_token = AsyncMock(return_value=Result.failure(auth_failure_exception))
 
         result = await jd_quote_client.get_maintain_quote_details(quote_id)
 
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "Auth failed" # Matches the error from auth_manager
+        assert error.message == "Auth failed" # Matches the error message
+        assert error.severity == ErrorSeverity.CRITICAL
+        assert error.details == {"reason": "mocked_auth_failure"}
         mock_request.assert_not_called() # request should not be made if auth fails upfront
 
         # Reset for subsequent tests if client is reused (though fixture re-creates it)
