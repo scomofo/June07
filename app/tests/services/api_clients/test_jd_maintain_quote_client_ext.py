@@ -82,7 +82,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.get_maintain_quote_details(quote_id)
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "API Error: 500" # Check context
         assert error.context.details["status"] == 500
@@ -105,7 +105,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.get_maintain_quote_details(quote_id)
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "Auth token fetch failed"
         assert error.context.severity == ErrorSeverity.CRITICAL
@@ -162,7 +162,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.get_quotes(dealerId=dealer_id)
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "API Error: 400" # Check context
         assert error.context.details["status"] == 400
@@ -195,7 +195,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.get_master_quotes(dealerId=dealer_id)
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "API Error: 403" # Check context
 
@@ -227,7 +227,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.create_quote(quote_data=quote_data)
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "API Error: 422" # Check context
 
@@ -257,7 +257,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.delete_quote(quote_id=quote_id_to_delete)
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "API Error: 404" # Check context
 
@@ -288,7 +288,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.get_trade_in_details(quote_id=quote_id)
 
         assert result.is_failure()
-        error = result.error() # First attempt 401
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         # The _request method will try to refresh token on 401.
         # If refresh_token fails or second attempt also fails, then it's an error.
@@ -325,7 +325,7 @@ class TestJDMaintainQuoteApiClient:
         mock_request.return_value = await self.mock_response(500, text_data="Server Error")
         result = await jd_quote_client.maintain_quotes_general(data=request_data)
         assert result.is_failure()
-        assert result.error().context.message == "API Error: 500" # Check context
+        assert result.error.context.message == "API Error: 500" # Check context, changed from result.error()
 
     # Test for add_equipment_to_quote
     @patch("aiohttp.ClientSession.request")
@@ -354,7 +354,7 @@ class TestJDMaintainQuoteApiClient:
         mock_request.return_value = await self.mock_response(400, text_data="Bad equipment data")
         result = await jd_quote_client.add_equipment_to_quote(quote_id=quote_id, equipment_data=equipment_data)
         assert result.is_failure()
-        assert result.error().context.message == "API Error: 400" # Check context
+        assert result.error.context.message == "API Error: 400" # Check context, changed from result.error()
 
     # Test for add_master_quotes_to_quote
     @patch("aiohttp.ClientSession.request")
@@ -590,7 +590,7 @@ class TestJDMaintainQuoteApiClient:
 
         result = await jd_quote_client.health_check()
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "JD Maintain Quote API health check failed." # Check context
         # The structure of details for health check failure is nested due to how it's constructed
@@ -603,7 +603,7 @@ class TestJDMaintainQuoteApiClient:
         result = await jd_quote_client.health_check()
 
         assert result.is_failure()
-        error = result.error()
+        error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert "JDMaintainQuoteApiClient is not operational" in error.context.message # Check context message
 
