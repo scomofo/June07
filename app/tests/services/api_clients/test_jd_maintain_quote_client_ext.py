@@ -5,18 +5,24 @@ import json # Added missing import
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.core.config import BRIDealConfig
-from app.core.exceptions import BRIDealException, ErrorSeverity
+from app.core.exceptions import BRIDealException, ErrorSeverity, ErrorContext, ErrorCategory # Added ErrorContext, ErrorCategory
 from app.core.result import Result
 from app.services.api_clients.jd_maintain_quote_client import JDMaintainQuoteApiClient
 from app.services.integrations.jd_auth_manager import JDAuthManager
 
-MOCK_BASE_URL = "https://test-jdquote2-api.deere.com"
+# MOCK_BASE_URL = "https://test-jdquote2-api.deere.com" # Removed, will use client.base_url
 
 @pytest.fixture
 def mock_config():
     config = MagicMock(spec=BRIDealConfig)
-    config.jd_quote2_api_base_url = MOCK_BASE_URL
+    # config.jd_quote2_api_base_url = MOCK_BASE_URL # Does not need to be set here if client uses its own default or passed config
     config.api_timeout = 10
+    # Ensure jd_quote2_api_base_url is available on the config mock if the client constructor relies on it
+    # For testing, client.base_url will be what's set in the client itself, often hardcoded or from a real config object.
+    # We will use client.base_url directly in tests.
+    # Let's assume the client will default its base_url or get it from the actual config it would use.
+    # For the mock_config, we can set it to ensure consistency if the client reads it.
+    config.jd_quote2_api_base_url = "https://jdquote2-api.deere.com" # Default from client, or a test specific one
     return config
 
 @pytest.fixture
@@ -63,9 +69,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "GET",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
-            headers=await jd_quote_client._get_headers(),
-            params=None
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
+            headers=await jd_quote_client._get_headers()
+            # params=None is omitted as it's default
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -78,26 +84,34 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "API Error: 500"
-        assert error.details["status"] == 500
+        assert error.context.message == "API Error: 500" # Check context
+        assert error.context.details["status"] == 500
 
     @patch("aiohttp.ClientSession.request")
     async def test_get_maintain_quote_details_auth_error(self, mock_request, jd_quote_client: JDMaintainQuoteApiClient):
         quote_id = "test_quote_789"
-        # First call to _get_headers fails
-        # Using direct message and severity for BRIDealException
-        auth_failure_exception = BRIDealException(message="Auth failed", severity=ErrorSeverity.CRITICAL, details={"reason": "mocked_auth_failure"})
-        jd_quote_client.auth_manager.get_access_token = AsyncMock(return_value=Result.failure(auth_failure_exception))
+
+        mock_error_ctx = ErrorContext(
+            code="AUTH_TEST_FAILURE",
+            message="Auth token fetch failed",
+            severity=ErrorSeverity.CRITICAL,
+            category=ErrorCategory.AUTHENTICATION,
+            details={"reason": "mocked_auth_failure"}
+        )
+        auth_failure_exception = BRIDealException(context=mock_error_ctx)
+        # Ensure this mock is on the auth_manager instance used by the client
+        jd_quote_client.auth_manager.get_access_token.return_value = Result.failure(auth_failure_exception)
 
         result = await jd_quote_client.get_maintain_quote_details(quote_id)
 
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "Auth failed" # Matches the error message
-        assert error.severity == ErrorSeverity.CRITICAL
-        assert error.details == {"reason": "mocked_auth_failure"}
-        mock_request.assert_not_called() # request should not be made if auth fails upfront
+        assert error.context.message == "Auth token fetch failed"
+        assert error.context.severity == ErrorSeverity.CRITICAL
+        assert error.context.category == ErrorCategory.AUTHENTICATION
+        assert error.context.details == {"reason": "mocked_auth_failure"}
+        mock_request.assert_not_called()
 
         # Reset for subsequent tests if client is reused (though fixture re-creates it)
         jd_quote_client.auth_manager.get_access_token = AsyncMock(return_value=Result.success("test_token"))
@@ -135,7 +149,7 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "GET",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes",
             headers=await jd_quote_client._get_headers(),
             params=expected_params
         )
@@ -150,8 +164,8 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "API Error: 400"
-        assert error.details["status"] == 400
+        assert error.context.message == "API Error: 400" # Check context
+        assert error.context.details["status"] == 400
 
     # Tests for Get Master Quotes
     @patch("aiohttp.ClientSession.request")
@@ -168,7 +182,7 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "GET",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/master-quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/master-quotes",
             headers=await jd_quote_client._get_headers(),
             params=expected_params
         )
@@ -183,7 +197,7 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "API Error: 403"
+        assert error.context.message == "API Error: 403" # Check context
 
     # Tests for Create Quote
     @patch("aiohttp.ClientSession.request")
@@ -199,10 +213,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes",
             headers=await jd_quote_client._get_headers(),
-            json=quote_data,
-            params=None
+            json=quote_data
+            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -215,7 +229,7 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "API Error: 422"
+        assert error.context.message == "API Error: 422" # Check context
 
     # Tests for Delete Quote
     @patch("aiohttp.ClientSession.request")
@@ -230,10 +244,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() is None # Expect None for empty successful response
         mock_request.assert_called_once_with(
             "DELETE",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id_to_delete}",
-            headers=await jd_quote_client._get_headers(),
-            params=None,
-            json=None
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id_to_delete}",
+            headers=await jd_quote_client._get_headers()
+            # params=None and json=None are omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -246,7 +259,7 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "API Error: 404"
+        assert error.context.message == "API Error: 404" # Check context
 
     # Tests for Get Trade In Details
     @patch("aiohttp.ClientSession.request")
@@ -262,9 +275,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "GET",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/trade-in",
-            headers=await jd_quote_client._get_headers(),
-            params=None
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/trade-in",
+            headers=await jd_quote_client._get_headers()
+            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -282,7 +295,7 @@ class TestJDMaintainQuoteApiClient:
         # Here we assume refresh_token is mocked to succeed, so second attempt will be made.
         # To simplify, let's ensure the test directly reflects the final outcome after retry logic.
         # If the second attempt (after supposed refresh) also yields 401, that's the error reported.
-        assert error.message == "API Error: 401" # This would be after retry
+        assert error.context.message == "API Error: 401" # This would be after retry. Check context.
         assert jd_quote_client.auth_manager.refresh_token.call_count >= 1 # Refresh was attempted
 
     # --- Tests for Existing Methods ---
@@ -300,10 +313,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/maintain-quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/maintain-quotes",
             headers=await jd_quote_client._get_headers(),
-            json=request_data,
-            params=None
+            json=request_data
+            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -312,7 +325,7 @@ class TestJDMaintainQuoteApiClient:
         mock_request.return_value = await self.mock_response(500, text_data="Server Error")
         result = await jd_quote_client.maintain_quotes_general(data=request_data)
         assert result.is_failure()
-        assert result.error().message == "API Error: 500"
+        assert result.error().context.message == "API Error: 500" # Check context
 
     # Test for add_equipment_to_quote
     @patch("aiohttp.ClientSession.request")
@@ -328,10 +341,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/equipments",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/equipments",
             headers=await jd_quote_client._get_headers(),
-            json=equipment_data,
-            params=None
+            json=equipment_data
+            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -341,7 +354,7 @@ class TestJDMaintainQuoteApiClient:
         mock_request.return_value = await self.mock_response(400, text_data="Bad equipment data")
         result = await jd_quote_client.add_equipment_to_quote(quote_id=quote_id, equipment_data=equipment_data)
         assert result.is_failure()
-        assert result.error().message == "API Error: 400"
+        assert result.error().context.message == "API Error: 400" # Check context
 
     # Test for add_master_quotes_to_quote
     @patch("aiohttp.ClientSession.request")
@@ -357,10 +370,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/master-quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/master-quotes",
             headers=await jd_quote_client._get_headers(),
-            json=master_quotes_data,
-            params=None
+            json=master_quotes_data
+            # params=None is omitted
         )
 
     # Test for copy_quote
@@ -377,10 +390,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/copy-quote",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/copy-quote",
             headers=await jd_quote_client._get_headers(),
-            json=copy_details,
-            params=None
+            json=copy_details
+            # params=None is omitted
         )
 
     # Test for delete_equipment_from_quote
@@ -397,9 +410,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() is None
         mock_request.assert_called_once_with(
             "DELETE",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/equipments",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/equipments",
             headers=await jd_quote_client._get_headers(),
-            json=None, # DELETE typically has no body
+            # json=None is omitted
             params=params
         )
 
@@ -417,10 +430,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/dealers/{dealer_id}/quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/dealers/{dealer_id}/quotes",
             headers=await jd_quote_client._get_headers(),
-            json=quote_data,
-            params=None
+            json=quote_data
+            # params=None is omitted
         )
 
     # Test for update_quote_expiration_date
@@ -437,10 +450,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST", # Assuming POST, could be PUT
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/expiration-date",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/expiration-date",
             headers=await jd_quote_client._get_headers(),
-            json=expiration_data,
-            params=None
+            json=expiration_data
+            # params=None is omitted
         )
 
     # Test for update_dealer_maintain_quotes
@@ -457,10 +470,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "PUT",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/dealers/{dealer_racf_id}/maintain-quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/dealers/{dealer_racf_id}/maintain-quotes",
             headers=await jd_quote_client._get_headers(),
-            json=data,
-            params=None
+            json=data
+            # params=None is omitted
         )
 
     # Test for update_quote_maintain_quotes
@@ -477,10 +490,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST", # Assuming POST, could be PUT
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quotes",
             headers=await jd_quote_client._get_headers(),
-            json=data,
-            params=None
+            json=data
+            # params=None is omitted
         )
 
     # Test for save_quote
@@ -497,10 +510,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/save-quotes",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/save-quotes",
             headers=await jd_quote_client._get_headers(),
-            json=quote_data,
-            params=None
+            json=quote_data
+            # params=None is omitted
         )
 
     # Test for delete_trade_in_from_quote
@@ -516,9 +529,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() is None
         mock_request.assert_called_once_with(
             "DELETE",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/trade-in",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/trade-in",
             headers=await jd_quote_client._get_headers(),
-            json=None,
+            # json=None is omitted
             params=params
         )
 
@@ -537,10 +550,10 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() == expected_response_data
         mock_request.assert_called_once_with(
             "POST", # Assuming POST
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/{quote_id}/dealers/{dealer_id}",
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/dealers/{dealer_id}",
             headers=await jd_quote_client._get_headers(),
-            json=dealer_data,
-            params=None
+            json=dealer_data
+            # params=None is omitted
         )
 
     # Test for health_check
@@ -556,9 +569,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.unwrap() is True
         mock_request.assert_called_once_with(
             "GET",
-            f"{MOCK_BASE_URL}/om/maintainquote/api/v1/quotes/HEALTHCHECK_TEST_QUOTE/maintain-quote-details",
-            headers=await jd_quote_client._get_headers(),
-            params=None
+            f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/HEALTHCHECK_TEST_QUOTE/maintain-quote-details",
+            headers=await jd_quote_client._get_headers()
+            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -579,8 +592,9 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert error.message == "JD Maintain Quote API health check failed."
-        assert error.details["original_error"]["details"]["status"] == 500
+        assert error.context.message == "JD Maintain Quote API health check failed." # Check context
+        # The structure of details for health check failure is nested due to how it's constructed
+        assert error.context.details["original_error"]["context"]["details"]["status"] == 500
 
 
     async def test_health_check_failure_not_operational(self, jd_quote_client: JDMaintainQuoteApiClient):
@@ -591,7 +605,7 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error()
         assert isinstance(error, BRIDealException)
-        assert "JDMaintainQuoteApiClient is not operational" in error.message
+        assert "JDMaintainQuoteApiClient is not operational" in error.context.message # Check context message
 
         jd_quote_client.auth_manager.is_operational = True # Reset for other tests
 

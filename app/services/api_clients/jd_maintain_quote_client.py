@@ -5,7 +5,7 @@ from typing import Optional, Dict, List, Any
 
 import aiohttp
 from app.core.config import BRIDealConfig, get_config
-from app.core.exceptions import BRIDealException, ErrorSeverity
+from app.core.exceptions import BRIDealException, ErrorSeverity, ErrorContext, ErrorCategory # Added ErrorContext and ErrorCategory
 from app.core.result import Result
 from app.services.integrations.jd_auth_manager import JDAuthManager
 
@@ -50,7 +50,13 @@ class JDMaintainQuoteApiClient:
 
     async def _get_headers(self) -> Dict[str, str]:
         if not self.auth_manager.is_operational: # Changed from is_configured
-            raise BRIDealException("JD Auth Manager not configured or not operational.", ErrorSeverity.CRITICAL) # Updated message
+            err_ctx = ErrorContext(
+                code="AUTH_MANAGER_NOT_OPERATIONAL",
+                message="JD Auth Manager not configured or not operational.",
+                severity=ErrorSeverity.CRITICAL,
+                category=ErrorCategory.AUTHENTICATION
+            )
+            raise BRIDealException(context=err_ctx)
 
         token_result = await self.auth_manager.get_access_token()
         if token_result.is_failure():
@@ -68,7 +74,13 @@ class JDMaintainQuoteApiClient:
     ) -> Result[Any, BRIDealException]:
         await self._ensure_session()
         if not self.session: # Should not happen after _ensure_session
-            return Result.failure(BRIDealException("Session not initialized", ErrorSeverity.CRITICAL))
+            err_ctx = ErrorContext(
+                code="SESSION_NOT_INITIALIZED",
+                message="Session not initialized",
+                severity=ErrorSeverity.CRITICAL,
+                category=ErrorCategory.SYSTEM
+            )
+            return Result.failure(BRIDealException(context=err_ctx))
 
         full_url = f"{self.base_url}{endpoint}"
 
@@ -92,11 +104,14 @@ class JDMaintainQuoteApiClient:
 
                     if response.status >= 400:
                         logger.error(f"API Error: {method} {full_url} - Status: {response.status} - Response: {response_text[:500]}")
-                        return Result.failure(BRIDealException(
+                        err_ctx = ErrorContext(
+                            code=f"API_ERROR_{response.status}",
                             message=f"API Error: {response.status}",
-                            severity=ErrorSeverity.ERROR,
-                            details={"url": full_url, "method": method, "status": response.status, "response": response_text[:500]}
-                        ))
+                            severity=ErrorSeverity.HIGH, # Was ERROR
+                            details={"url": full_url, "method": method, "status": response.status, "response": response_text[:500]},
+                            category=ErrorCategory.NETWORK
+                        )
+                        return Result.failure(BRIDealException(context=err_ctx))
 
                     if not response_text: # Empty successful response
                         return Result.success(None)
@@ -105,31 +120,48 @@ class JDMaintainQuoteApiClient:
                         return Result.success(json.loads(response_text))
                     except json.JSONDecodeError:
                         logger.error(f"JSON Decode Error: {method} {full_url} - Response: {response_text[:500]}")
-                        return Result.failure(BRIDealException(
+                        err_ctx = ErrorContext(
+                            code="JSON_DECODE_ERROR",
                             message="Failed to decode JSON response",
-                            severity=ErrorSeverity.ERROR,
-                            details={"url": full_url, "method": method, "response": response_text[:500]}
-                        ))
+                            severity=ErrorSeverity.HIGH, # Was ERROR
+                            details={"url": full_url, "method": method, "response": response_text[:500]},
+                            category=ErrorCategory.NETWORK
+                        )
+                        return Result.failure(BRIDealException(context=err_ctx))
 
             except aiohttp.ClientError as e:
                 logger.error(f"AIOHTTP ClientError: {method} {full_url} - Error: {e}")
-                return Result.failure(BRIDealException(
+                err_ctx = ErrorContext(
+                    code="AIOHTTP_CLIENT_ERROR",
                     message=f"Network or HTTP error: {e}",
-                    severity=ErrorSeverity.ERROR,
-                    details={"url": full_url, "method": method, "error_type": type(e).__name__, "original_error": str(e)}
-                ))
-            except BRIDealException as e: # Catch auth errors from _get_headers
-                logger.error(f"BRIDealException: {method} {full_url} - Error: {e.message}")
-                return Result.failure(e)
+                    severity=ErrorSeverity.HIGH, # Was ERROR
+                    details={"url": full_url, "method": method, "error_type": type(e).__name__, "original_error": str(e)},
+                    category=ErrorCategory.NETWORK
+                )
+                return Result.failure(BRIDealException(context=err_ctx))
+            except BRIDealException as e: # Catch auth errors from _get_headers or other BRIDealExceptions
+                logger.error(f"BRIDealException: {method} {full_url} - Error: {e.context.message if e.context else str(e)}")
+                return Result.failure(e) # Propagate existing BRIDealException
             except Exception as e:
                 logger.exception(f"Unexpected Error: {method} {full_url}")
-                return Result.failure(BRIDealException(
+                err_ctx = ErrorContext(
+                    code="UNEXPECTED_CLIENT_ERROR",
                     message=f"An unexpected error occurred: {e}",
                     severity=ErrorSeverity.CRITICAL,
-                    details={"url": full_url, "method": method, "error_type": type(e).__name__}
-                ))
+                    details={"url": full_url, "method": method, "error_type": type(e).__name__},
+                    category=ErrorCategory.SYSTEM
+                )
+                return Result.failure(BRIDealException(context=err_ctx))
 
-        return Result.failure(BRIDealException("Request failed after token refresh attempt.", ErrorSeverity.ERROR, {"url": full_url, "method": method}))
+        # This case is after retry attempts for token refresh have failed.
+        err_ctx_refresh = ErrorContext(
+            code="TOKEN_REFRESH_FAILURE",
+            message="Request failed after token refresh attempt.",
+            severity=ErrorSeverity.HIGH, # Was ERROR
+            details={"url": full_url, "method": method},
+            category=ErrorCategory.AUTHENTICATION
+        )
+        return Result.failure(BRIDealException(context=err_ctx_refresh))
 
     # API Methods
     async def maintain_quotes_general(self, data: Dict) -> Result[Dict, BRIDealException]:
@@ -272,7 +304,13 @@ class JDMaintainQuoteApiClient:
 
     async def health_check(self) -> Result[bool, BRIDealException]:
         if not self.is_operational: # This now correctly checks auth_manager.is_operational
-            return Result.failure(BRIDealException("JDMaintainQuoteApiClient is not operational (auth manager issue or configuration).", ErrorSeverity.WARNING)) # Updated message
+            err_ctx_not_op = ErrorContext(
+                code="HEALTH_CHECK_NOT_OPERATIONAL",
+                message="JDMaintainQuoteApiClient is not operational (auth manager issue or configuration).",
+                severity=ErrorSeverity.MEDIUM, # Was WARNING
+                category=ErrorCategory.SYSTEM
+            )
+            return Result.failure(BRIDealException(context=err_ctx_not_op))
 
         # Use a simple GET endpoint, e.g., trying to get details for a non-existent/test quote.
         # A 404 would still indicate the API is reachable and auth is working.
@@ -285,17 +323,43 @@ class JDMaintainQuoteApiClient:
             return Result.success(True)
 
         # Check if the error is a 404, which is acceptable for a health check on a specific resource
-        if result.error() and result.error().details and result.error().details.get("status") == 404:
+        # Check if the error is a 404, which is acceptable for a health check on a specific resource
+        if result.is_failure() and result.error().context and result.error().context.details and result.error().context.details.get("status") == 404:
             logger.info(f"Health check: Received 404 for test quote '{test_quote_id}', API is responsive.")
             return Result.success(True)
 
-        err_details = result.error().to_dict() if result.error() else {}
-        logger.warning(f"Health check failed for JDMaintainQuoteApiClient: {err_details}")
-        return Result.failure(BRIDealException(
-            message="JD Maintain Quote API health check failed.",
-            severity=ErrorSeverity.WARNING,
-            details=err_details
-        ))
+        # If result is a failure for other reasons, or if result.error().context.details is not as expected
+        elif result.is_failure() and result.error().context: # Ensure context exists
+            err_details_dict = vars(result.error().context) # Use vars() for dataclass to dict conversion
+            logger.warning(f"Health check failed for JDMaintainQuoteApiClient: {err_details_dict}")
+            err_ctx_hc_failed = ErrorContext(
+                code="HEALTH_CHECK_API_FAILURE", # More specific code
+                message="JD Maintain Quote API health check failed.",
+                severity=ErrorSeverity.MEDIUM, # Was WARNING
+                details=err_details_dict, # This contains the original error context's details
+                category=ErrorCategory.NETWORK # Or SYSTEM if more appropriate
+            )
+            return Result.failure(BRIDealException(context=err_ctx_hc_failed))
+        elif result.is_failure(): # Fallback if result.error().context was None (should be rare)
+            logger.warning(f"Health check failed for JDMaintainQuoteApiClient with minimal error info: {str(result.error())}")
+            err_ctx_hc_failed_minimal = ErrorContext(
+                code="HEALTH_CHECK_API_FAILURE_MINIMAL",
+                message="JD Maintain Quote API health check failed with minimal error information.",
+                severity=ErrorSeverity.MEDIUM,
+                details={"original_error": str(result.error())},
+                category=ErrorCategory.NETWORK
+            )
+            return Result.failure(BRIDealException(context=err_ctx_hc_failed_minimal))
+
+        # Fallback for unexpected non-failure, non-success states (should ideally not be reached)
+        logger.error(f"Health check reached an unexpected state. Result was: {result}")
+        err_ctx_hc_unexpected = ErrorContext(
+            code="HEALTH_CHECK_UNEXPECTED_STATE",
+            message="JD Maintain Quote API health check encountered an unexpected state.",
+            severity=ErrorSeverity.MEDIUM,
+            category=ErrorCategory.SYSTEM
+        )
+        return Result.failure(BRIDealException(context=err_ctx_hc_unexpected))
 
     async def close(self) -> None:
         await self._close_session()
@@ -322,33 +386,39 @@ async def main():
         # Ensure BRIDEAL_JD_CLIENT_ID, BRIDEAL_JD_CLIENT_SECRET, BRIDEAL_JD_QUOTE2_API_BASE_URL are set
         auth_manager = JDAuthManager(config)
 
-        if not auth_manager.is_configured():
-            logger.warning("JD Auth Manager not configured. API calls will fail.")
+        if not auth_manager.is_operational: # Changed from is_configured to is_operational
+            logger.warning("JD Auth Manager not operational. API calls will fail.") # Updated message
 
         async with await get_jd_maintain_quote_client(config, auth_manager) as client:
-            if not client.is_operational:
-                logger.warning("JDMaintainQuoteApiClient is not operational.")
-                return
+            if not client.is_operational: # This check is essentially duplicated by health_check's internal check
+                logger.warning("JDMaintainQuoteApiClient is not operational based on initial check.")
+                # Consider if early return is needed or let health_check handle it
+                # return # Example: might return if client.is_operational is a quick check
 
-            logger.info("JDMaintainQuoteApiClient is operational. Performing health check...")
-            health = await client.health_check()
-            if health.is_success():
-                logger.info(f"Health check successful: {health.unwrap()}")
+            logger.info("JDMaintainQuoteApiClient is available. Performing health check...")
+            health_result = await client.health_check()
+            if health_result.is_success():
+                logger.info(f"Health check successful: {health_result.unwrap()}")
 
                 # Example: Get maintain quote details for a specific quote
-                # quote_id_to_test = "SOME_EXISTING_QUOTE_ID"
+                # quote_id_to_test = "SOME_EXISTING_QUOTE_ID_FOR_TESTING"
+                # logger.info(f"Attempting to get details for quote: {quote_id_to_test}")
                 # details_result = await client.get_maintain_quote_details(quote_id_to_test)
                 # if details_result.is_success():
-                #    logger.info(f"Details for quote {quote_id_to_test}: {details_result.unwrap()}")
+                #    logger.info(f"Successfully retrieved details for quote {quote_id_to_test}: {details_result.unwrap()}")
                 # else:
-                #    logger.error(f"Error getting details for {quote_id_to_test}: {details_result.error()}")
+                #    error_info = details_result.error()
+                #    logger.error(f"Error getting details for {quote_id_to_test}: Code: {error_info.context.code}, Msg: {error_info.context.message}, Details: {error_info.context.details}")
             else:
-                logger.error(f"Health check failed: {health.error()}")
+                error_info = health_result.error()
+                logger.error(f"Health check failed: Code: {error_info.context.code}, Msg: {error_info.context.message}, Details: {error_info.context.details}")
+
 
     except BRIDealException as e:
-        logger.error(f"BRIDealException: {e.message}, Details: {e.details}")
+        # Log the rich context from BRIDealException
+        logger.error(f"BRIDealException caught in main: Code: {e.context.code}, Message: {e.context.message}, Severity: {e.context.severity.value}, Details: {e.context.details}")
     except Exception as e:
-        logger.exception(f"Unexpected error in main: {e}")
+        logger.exception(f"An unexpected error of type {type(e).__name__} occurred in main: {e}")
 
 if __name__ == "__main__":
     # asyncio.run(main()) # Commented out
