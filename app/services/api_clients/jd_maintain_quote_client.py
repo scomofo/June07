@@ -194,6 +194,81 @@ class JDMaintainQuoteApiClient:
         endpoint = f"/om/maintainquote/api/v1/quotes/{quote_id}/dealers/{dealer_id}"
         return await self._request("POST", endpoint, data=dealer_data if dealer_data else {})
 
+    # New methods to be added
+
+    async def create_quote(self, quote_data: Dict) -> Result[Dict, BRIDealException]:
+        """
+        Creates a new quote.
+        The quote_data is expected to contain all necessary information for quote creation.
+        """
+        endpoint = "/om/maintainquote/api/v1/quotes"
+        return await self._request("POST", endpoint, data=quote_data)
+
+    async def delete_quote(self, quote_id: str) -> Result[Optional[Dict], BRIDealException]: # Response might be empty on success
+        """
+        Deletes a specific quote by its ID.
+        """
+        endpoint = f"/om/maintainquote/api/v1/quotes/{quote_id}"
+        return await self._request("DELETE", endpoint)
+
+    async def get_master_quotes(
+        self,
+        dealerId: str,
+        masterQuoteType: Optional[str] = None,
+        status: Optional[str] = None,
+        start: Optional[int] = None,
+        count: Optional[int] = None,
+        lastModifiedDate: Optional[str] = None #YYYY-MM-DD
+    ) -> Result[List[Dict], BRIDealException]: # Assuming response is a list of master quotes
+        """
+        Retrieves a list of master quotes for a dealer.
+        """
+        endpoint = "/om/maintainquote/api/v1/master-quotes"
+        params: Dict[str, Any] = {"dealerId": dealerId}
+        if masterQuoteType:
+            params["masterQuoteType"] = masterQuoteType
+        if status:
+            params["status"] = status
+        if start is not None: # start can be 0
+            params["start"] = start
+        if count is not None: # count can be 0
+            params["count"] = count
+        if lastModifiedDate:
+            params["lastModifiedDate"] = lastModifiedDate
+        return await self._request("GET", endpoint, params=params)
+
+    async def get_quotes(
+        self,
+        dealerId: str,
+        status: Optional[str] = None,
+        start: Optional[int] = None,
+        count: Optional[int] = None,
+        lastModifiedDate: Optional[str] = None, #YYYY-MM-DD
+        quoteType: Optional[str] = None
+    ) -> Result[List[Dict], BRIDealException]: # Assuming response is a list of quotes
+        """
+        Retrieves a list of quotes for a dealer.
+        """
+        endpoint = "/om/maintainquote/api/v1/quotes"
+        params: Dict[str, Any] = {"dealerId": dealerId}
+        if status:
+            params["status"] = status
+        if start is not None:
+            params["start"] = start
+        if count is not None:
+            params["count"] = count
+        if lastModifiedDate:
+            params["lastModifiedDate"] = lastModifiedDate
+        if quoteType:
+            params["quoteType"] = quoteType
+        return await self._request("GET", endpoint, params=params)
+
+    async def get_trade_in_details(self, quote_id: str) -> Result[Dict, BRIDealException]: # Assuming response is a dict
+        """
+        Retrieves trade-in details for a specific quote.
+        """
+        endpoint = f"/om/maintainquote/api/v1/quotes/{quote_id}/trade-in"
+        return await self._request("GET", endpoint)
 
     async def health_check(self) -> Result[bool, BRIDealException]:
         if not self.is_operational: # This now correctly checks auth_manager.is_operational
