@@ -164,7 +164,8 @@ class MaintainQuotesAPI:
             # Assuming jd_quote_api_client has a method to handle such a query
             # This method should ideally return a Result object from jd_quote_client
             # For this fix, let's assume get_quotes is the method in JDQuoteApiClient
-            result: Result[Dict, BRIDealException] = await self.jd_quote_api_client._request("POST", "quotes", data=criteria)
+            endpoint = f"/api/v1/dealers/{dealer_racf_id}/maintain-quotes"
+            result: Result[Dict, BRIDealException] = await self.jd_quote_api_client._request("POST", endpoint, data=criteria)
             return result
         except Exception as e:
             logger.error(f"MaintainQuotesAPI: Unexpected exception while fetching quotes: {e}", exc_info=True)
