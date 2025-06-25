@@ -60,7 +60,7 @@ class JDMaintainQuoteApiClient:
 
         token_result = await self.auth_manager.get_access_token()
         if token_result.is_failure():
-            raise token_result.error()
+            raise token_result.error # Corrected: raise the exception instance directly
         token = token_result.unwrap()
 
         return {

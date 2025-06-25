@@ -108,6 +108,7 @@ class TestJDMaintainQuoteApiClient:
         error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
         assert error.context.message == "Auth token fetch failed"
+        assert error.context.code == "AUTH_TEST_FAILURE" # Ensuring code is checked
         assert error.context.severity == ErrorSeverity.CRITICAL
         assert error.context.category == ErrorCategory.AUTHENTICATION
         assert error.context.details == {"reason": "mocked_auth_failure"}
@@ -592,9 +593,21 @@ class TestJDMaintainQuoteApiClient:
         assert result.is_failure()
         error = result.error # Changed from result.error()
         assert isinstance(error, BRIDealException)
-        assert error.context.message == "JD Maintain Quote API health check failed." # Check context
-        # The structure of details for health check failure is nested due to how it's constructed
-        assert error.context.details["original_error"]["context"]["details"]["status"] == 500
+        assert error.context.message == "JD Maintain Quote API health check failed." # This is the message of the wrapping ErrorContext
+
+        # The 'details' of this wrapping ErrorContext should contain the vars of the original error's context.
+        original_error_context_vars = error.context.details
+        assert isinstance(original_error_context_vars, dict)
+
+        # Now check the fields from the original error's context (which was from get_maintain_quote_details)
+        assert original_error_context_vars.get("message") == "API Error: 500"
+        assert original_error_context_vars.get("code") == "API_ERROR_500" # Assuming this was the code for the 500 error
+        assert original_error_context_vars.get("severity") == ErrorSeverity.HIGH # As it was set for API_ERROR_500
+
+        # And the status from the original error's details (which is nested inside original_error_context_vars.details)
+        original_details = original_error_context_vars.get("details")
+        assert isinstance(original_details, dict)
+        assert original_details.get("status") == 500
 
 
     async def test_health_check_failure_not_operational(self, jd_quote_client: JDMaintainQuoteApiClient):
