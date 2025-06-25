@@ -140,10 +140,14 @@ class JDMaintainQuoteApiClient:
                 )
                 return Result.failure(BRIDealException(context=err_ctx))
             except BRIDealException as e: # Catch auth errors from _get_headers or other BRIDealExceptions
-                logger.error(f"BRIDealException: {method} {full_url} - Error: {e.context.message if e.context else str(e)}")
+                logger.error(f"BRIDealException encountered: {method} {full_url} - Code: {e.context.code if hasattr(e, 'context') and e.context else 'N/A'}, Message: {e.context.message if hasattr(e, 'context') and e.context else str(e)}")
                 return Result.failure(e) # Propagate existing BRIDealException
             except Exception as e:
-                logger.exception(f"Unexpected Error: {method} {full_url}")
+                # Ensure BRIDealException caught here also has its context logged if it's one of ours
+                if isinstance(e, BRIDealException) and hasattr(e, 'context') and e.context:
+                    logger.exception(f"Unexpected BRIDealException without specific catch: {method} {full_url} - Code: {e.context.code}, Message: {e.context.message}")
+                else:
+                    logger.exception(f"Unexpected Error: {method} {full_url}")
                 err_ctx = ErrorContext(
                     code="UNEXPECTED_CLIENT_ERROR",
                     message=f"An unexpected error occurred: {e}",
@@ -323,36 +327,40 @@ class JDMaintainQuoteApiClient:
             return Result.success(True)
 
         # Check if the error is a 404, which is acceptable for a health check on a specific resource
-        # Check if the error is a 404, which is acceptable for a health check on a specific resource
-        if result.is_failure() and result.error().context and result.error().context.details and result.error().context.details.get("status") == 404:
+        if result.is_failure() and \
+           hasattr(result.error, 'context') and result.error.context and \
+           hasattr(result.error.context, 'details') and result.error.context.details and \
+           result.error.context.details.get("status") == 404:
             logger.info(f"Health check: Received 404 for test quote '{test_quote_id}', API is responsive.")
             return Result.success(True)
 
-        # If result is a failure for other reasons, or if result.error().context.details is not as expected
-        elif result.is_failure() and result.error().context: # Ensure context exists
-            err_details_dict = vars(result.error().context) # Use vars() for dataclass to dict conversion
-            logger.warning(f"Health check failed for JDMaintainQuoteApiClient: {err_details_dict}")
-            err_ctx_hc_failed = ErrorContext(
-                code="HEALTH_CHECK_API_FAILURE", # More specific code
-                message="JD Maintain Quote API health check failed.",
-                severity=ErrorSeverity.MEDIUM, # Was WARNING
-                details=err_details_dict, # This contains the original error context's details
-                category=ErrorCategory.NETWORK # Or SYSTEM if more appropriate
-            )
-            return Result.failure(BRIDealException(context=err_ctx_hc_failed))
-        elif result.is_failure(): # Fallback if result.error().context was None (should be rare)
-            logger.warning(f"Health check failed for JDMaintainQuoteApiClient with minimal error info: {str(result.error())}")
-            err_ctx_hc_failed_minimal = ErrorContext(
-                code="HEALTH_CHECK_API_FAILURE_MINIMAL",
-                message="JD Maintain Quote API health check failed with minimal error information.",
-                severity=ErrorSeverity.MEDIUM,
-                details={"original_error": str(result.error())},
-                category=ErrorCategory.NETWORK
-            )
-            return Result.failure(BRIDealException(context=err_ctx_hc_failed_minimal))
+        # If result is a failure for other reasons
+        elif result.is_failure():
+            if hasattr(result.error, 'context') and result.error.context:
+                err_details_dict = vars(result.error.context) # Use vars() for dataclass to dict conversion
+                logger.warning(f"Health check failed for JDMaintainQuoteApiClient: {err_details_dict}")
+                err_ctx_hc_failed = ErrorContext(
+                    code="HEALTH_CHECK_API_FAILURE",
+                    message="JD Maintain Quote API health check failed.",
+                    severity=ErrorSeverity.MEDIUM,
+                    details=err_details_dict,
+                    category=ErrorCategory.NETWORK
+                )
+                return Result.failure(BRIDealException(context=err_ctx_hc_failed))
+            else: # Fallback if result.error has no context (should be rare for BRIDealException)
+                error_str = str(result.error)
+                logger.warning(f"Health check failed for JDMaintainQuoteApiClient with minimal error info: {error_str}")
+                err_ctx_hc_failed_minimal = ErrorContext(
+                    code="HEALTH_CHECK_API_FAILURE_MINIMAL",
+                    message="JD Maintain Quote API health check failed with minimal error information.",
+                    severity=ErrorSeverity.MEDIUM,
+                    details={"original_error": error_str},
+                    category=ErrorCategory.NETWORK
+                )
+                return Result.failure(BRIDealException(context=err_ctx_hc_failed_minimal))
 
-        # Fallback for unexpected non-failure, non-success states (should ideally not be reached)
-        logger.error(f"Health check reached an unexpected state. Result was: {result}")
+        # Fallback for unexpected non-failure, non-success states (e.g. if result is not Ok or Err)
+        logger.error(f"Health check reached an unexpected state. Result type was: {type(result)}")
         err_ctx_hc_unexpected = ErrorContext(
             code="HEALTH_CHECK_UNEXPECTED_STATE",
             message="JD Maintain Quote API health check encountered an unexpected state.",

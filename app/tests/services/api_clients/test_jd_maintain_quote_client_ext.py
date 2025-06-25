@@ -67,11 +67,11 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "GET",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quote-details",
-            headers=await jd_quote_client._get_headers()
-            # params=None is omitted as it's default
+            headers=expected_headers
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -211,12 +211,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=quote_data
-            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -242,11 +242,11 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() is None # Expect None for empty successful response
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "DELETE",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id_to_delete}",
-            headers=await jd_quote_client._get_headers()
-            # params=None and json=None are omitted
+            headers=expected_headers
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -273,11 +273,11 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "GET",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/trade-in",
-            headers=await jd_quote_client._get_headers()
-            # params=None is omitted
+            headers=expected_headers
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -311,12 +311,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/maintain-quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=request_data
-            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -339,12 +339,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/equipments",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=equipment_data
-            # params=None is omitted
         )
 
     @patch("aiohttp.ClientSession.request")
@@ -368,12 +368,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/master-quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=master_quotes_data
-            # params=None is omitted
         )
 
     # Test for copy_quote
@@ -388,12 +388,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/copy-quote",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=copy_details
-            # params=None is omitted
         )
 
     # Test for delete_equipment_from_quote
@@ -408,11 +408,11 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() is None
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "DELETE",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/equipments",
-            headers=await jd_quote_client._get_headers(),
-            # json=None is omitted
+            headers=expected_headers,
             params=params
         )
 
@@ -428,12 +428,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/dealers/{dealer_id}/quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=quote_data
-            # params=None is omitted
         )
 
     # Test for update_quote_expiration_date
@@ -448,12 +448,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST", # Assuming POST, could be PUT
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/expiration-date",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=expiration_data
-            # params=None is omitted
         )
 
     # Test for update_dealer_maintain_quotes
@@ -468,12 +468,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "PUT",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/dealers/{dealer_racf_id}/maintain-quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=data
-            # params=None is omitted
         )
 
     # Test for update_quote_maintain_quotes
@@ -488,12 +488,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST", # Assuming POST, could be PUT
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/maintain-quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=data
-            # params=None is omitted
         )
 
     # Test for save_quote
@@ -508,12 +508,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/save-quotes",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=quote_data
-            # params=None is omitted
         )
 
     # Test for delete_trade_in_from_quote
@@ -527,11 +527,11 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() is None
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "DELETE",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/trade-in",
-            headers=await jd_quote_client._get_headers(),
-            # json=None is omitted
+            headers=expected_headers,
             params=params
         )
 
@@ -548,12 +548,12 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() == expected_response_data
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "POST", # Assuming POST
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/{quote_id}/dealers/{dealer_id}",
-            headers=await jd_quote_client._get_headers(),
+            headers=expected_headers,
             json=dealer_data
-            # params=None is omitted
         )
 
     # Test for health_check
@@ -567,11 +567,11 @@ class TestJDMaintainQuoteApiClient:
 
         assert result.is_success()
         assert result.unwrap() is True
+        expected_headers = await jd_quote_client._get_headers()
         mock_request.assert_called_once_with(
             "GET",
             f"{jd_quote_client.base_url}/om/maintainquote/api/v1/quotes/HEALTHCHECK_TEST_QUOTE/maintain-quote-details",
-            headers=await jd_quote_client._get_headers()
-            # params=None is omitted
+            headers=expected_headers
         )
 
     @patch("aiohttp.ClientSession.request")
