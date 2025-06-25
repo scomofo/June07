@@ -7,8 +7,8 @@ import json
 from datetime import datetime
 
 # Import the Result type and exceptions
-from app.core.exceptions import BRIDealException, ErrorSeverity
-from app.core.result import Result  # Add this import
+from app.core.exceptions import BRIDealException, ErrorContext, ErrorSeverity
+from app.core.result import Result
 from app.services.integrations.jd_auth_manager import JDAuthManager
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,25 @@ class JDQuoteApiClient:
     def __init__(self, config, auth_manager: JDAuthManager):
         self.config = config
         self.auth_manager = auth_manager
-        self.base_url = config.get("JD_API_BASE_URL", "https://api.deere.com")
+        # Prioritize the specific quote API base URL if available
+        self.base_url = config.get("BRIDEAL_JD_QUOTE2_API_BASE_URL")
+        if not self.base_url:
+            # Fallback to the general JD_API_BASE_URL
+            self.base_url = config.get("JD_API_BASE_URL")
+            if self.base_url:
+                logger.warning(
+                    "JDQuoteApiClient is using fallback JD_API_BASE_URL. "
+                    "For quote-specific operations, ensure BRIDEAL_JD_QUOTE2_API_BASE_URL is configured."
+                )
+            else:
+                # Last resort: hardcoded default
+                self.base_url = "https://api.deere.com"
+                logger.warning(
+                    f"JDQuoteApiClient is using hardcoded default base URL: {self.base_url}. "
+                    "Ensure BRIDEAL_JD_QUOTE2_API_BASE_URL or JD_API_BASE_URL is configured in .env or config."
+                )
+
+        logger.info(f"JDQuoteApiClient initialized with base_url: {self.base_url}")
         self.timeout = aiohttp.ClientTimeout(total=30)
         self.session: Optional[aiohttp.ClientSession] = None
         
@@ -52,16 +70,14 @@ class JDQuoteApiClient:
     async def _get_headers(self) -> Dict[str, str]:
         """Get headers with authentication token"""
         try:
-            token = await asyncio.get_event_loop().run_in_executor(
-                None, self.auth_manager.get_access_token
-            )
+            token = await self.auth_manager.get_access_token()
             
             if not token:
-                raise BRIDealException.from_context(
+                raise BRIDealException(ErrorContext(
                     code="JD_AUTH_TOKEN_MISSING",
                     message="No valid authentication token available",
                     severity=ErrorSeverity.HIGH
-                )
+                ))
             
             return {
                 "Authorization": f"Bearer {token}",
@@ -70,13 +86,13 @@ class JDQuoteApiClient:
             }
         except Exception as e:
             logger.error(f"Failed to get authentication headers: {e}")
-            raise BRIDealException.from_context(
+            raise BRIDealException(ErrorContext(
                 code="JD_AUTH_HEADER_ERROR",
                 message=f"Failed to prepare authentication headers: {str(e)}",
                 severity=ErrorSeverity.HIGH
-            )
+            ))
     
-    async def _request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Result[Dict, BRIDealException]:
+    async def _request(self, method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None) -> Result[Dict, BRIDealException]:
         """Make authenticated request to JD API"""
         await self._ensure_session()
         
@@ -86,13 +102,14 @@ class JDQuoteApiClient:
             
             kwargs = {
                 "headers": headers,
-                "ssl": False  # Consider making this configurable
+                "ssl": False,  # Consider making this configurable
+                "params": params if params else {} # Add params to kwargs
             }
             
             if data:
                 kwargs["json"] = data
             
-            logger.debug(f"Making {method} request to: {url}")
+            logger.debug(f"Making {method} request to: {url} with data: {data} and params: {params}") # Updated debug log
             
             async with self.session.request(method, url, **kwargs) as response:
                 response_text = await response.text()
@@ -100,9 +117,7 @@ class JDQuoteApiClient:
                 if response.status == 401:
                     # Token might be expired, try to refresh
                     try:
-                        await asyncio.get_event_loop().run_in_executor(
-                            None, self.auth_manager.refresh_access_token
-                        )
+                        await self.auth_manager.refresh_access_token()
                         # Retry with new token
                         headers = await self._get_headers()
                         kwargs["headers"] = headers
@@ -110,65 +125,74 @@ class JDQuoteApiClient:
                         async with self.session.request(method, url, **kwargs) as retry_response:
                             retry_text = await retry_response.text()
                             if retry_response.status >= 400:
-                                return Result.failure(BRIDealException.from_context(
+                                return Result.failure(BRIDealException(ErrorContext(
                                     code="JD_API_ERROR",
                                     message=f"API request failed after token refresh: {retry_response.status}",
                                     severity=ErrorSeverity.MEDIUM,
                                     details={"response": retry_text, "status": retry_response.status}
-                                ))
+                                )))
                             
                             return Result.success(json.loads(retry_text) if retry_text else {})
                             
                     except Exception as refresh_error:
                         logger.error(f"Token refresh failed: {refresh_error}")
-                        return Result.failure(BRIDealException.from_context(
+                        return Result.failure(BRIDealException(ErrorContext(
                             code="JD_AUTH_REFRESH_FAILED",
                             message="Authentication token refresh failed",
                             severity=ErrorSeverity.HIGH,
                             details={"error": str(refresh_error)}
-                        ))
+                        )))
                 
                 if response.status >= 400:
-                    return Result.failure(BRIDealException.from_context(
+                    return Result.failure(BRIDealException(ErrorContext(
                         code="JD_API_ERROR",
                         message=f"API request failed: {response.status}",
                         severity=ErrorSeverity.MEDIUM,
                         details={"response": response_text, "status": response.status}
-                    ))
+                    )))
                 
                 # Parse JSON response
                 try:
                     response_data = json.loads(response_text) if response_text else {}
                     return Result.success(response_data)
                 except json.JSONDecodeError as e:
-                    return Result.failure(BRIDealException.from_context(
+                    return Result.failure(BRIDealException(ErrorContext(
                         code="JD_RESPONSE_PARSE_ERROR",
                         message="Failed to parse API response as JSON",
                         severity=ErrorSeverity.MEDIUM,
                         details={"response": response_text, "error": str(e)}
-                    ))
+                    )))
                     
         except aiohttp.ClientError as e:
             logger.error(f"HTTP client error: {e}")
-            return Result.failure(BRIDealException.from_context(
+            return Result.failure(BRIDealException(ErrorContext(
                 code="JD_HTTP_ERROR",
                 message=f"HTTP request failed: {str(e)}",
                 severity=ErrorSeverity.MEDIUM,
                 details={"endpoint": endpoint, "method": method}
-            ))
+            )))
         except Exception as e:
             logger.error(f"Unexpected error in API request: {e}")
-            return Result.failure(BRIDealException.from_context(
+            return Result.failure(BRIDealException(ErrorContext(
                 code="JD_UNEXPECTED_ERROR",
                 message=f"Unexpected error during API request: {str(e)}",
                 severity=ErrorSeverity.HIGH,
                 details={"endpoint": endpoint, "method": method}
-            ))
+            )))
     
     # API Methods
-    async def get_quote_details(self, quote_id: str) -> Result[Dict, BRIDealException]:
-        """Get details for a specific quote"""
-        return await self._request("GET", f"quotes/{quote_id}")
+    async def get_quote_details(self, quote_id: str, dealer_account_no: Optional[str] = None, po_number: Optional[str] = None) -> Result[Dict, BRIDealException]:
+        """
+        Get details for a specific quote, optionally with dealer account number and PO number.
+        The endpoint path quotes/{quote_id}/maintain-quote-details is assumed to be correct relative to base_url.
+        """
+        query_params = {}
+        if dealer_account_no:
+            query_params["dealerAccountNo"] = dealer_account_no
+        if po_number:
+            query_params["poNumber"] = po_number
+            
+        return await self._request("GET", f"quotes/{quote_id}/maintain-quote-details", params=query_params if query_params else None)
     
     async def create_quote(self, quote_data: Dict) -> Result[Dict, BRIDealException]:
         """Create a new quote"""
@@ -185,12 +209,9 @@ class JDQuoteApiClient:
     async def list_quotes(self, filters: Optional[Dict] = None) -> Result[List[Dict], BRIDealException]:
         """List quotes with optional filters"""
         endpoint = "quotes"
-        if filters:
-            # Convert filters to query parameters
-            query_params = "&".join([f"{k}={v}" for k, v in filters.items()])
-            endpoint += f"?{query_params}"
-        
-        result = await self._request("GET", endpoint)
+        # The _request method now handles 'params' directly.
+        # If filters are provided, they can be passed as params.
+        result = await self._request("GET", endpoint, params=filters)
         if result.is_success():
             # Ensure we return a list
             data = result.value
@@ -232,11 +253,11 @@ class JDQuoteApiClient:
             result = await self._request("GET", "health")
             return Result.success(result.is_success())
         except Exception as e:
-            return Result.failure(BRIDealException.from_context(
+            return Result.failure(BRIDealException(ErrorContext(
                 code="JD_HEALTH_CHECK_FAILED",
                 message=f"Health check failed: {str(e)}",
                 severity=ErrorSeverity.LOW
-            ))
+            )))
     
     # Resource cleanup
     async def close(self):
