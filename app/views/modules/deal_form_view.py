@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import logging
 import io
 import html # Added import
+import pandas as pd # Added for Excel import
 from app.services.email_service import send_deal_email_via_sharepoint_service # Added import
 
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QRunnable, QThreadPool, QTimer, QSize, QStringListModel, QEvent
@@ -23,7 +24,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QListWidget, QListWidgetItem, QCheckBox, QComboBox,
     QFormLayout, QSizePolicy, QMessageBox, QCompleter, QFileDialog,
     QApplication, QDialog, QDialogButtonBox, QFrame, QScrollArea,
-    QSpacerItem, QGroupBox, QSpinBox, QInputDialog
+    QSpacerItem, QGroupBox, QSpinBox, QInputDialog # QInputDialog already here
 )
 from PyQt6.QtGui import QFont, QIcon, QDoubleValidator, QPixmap
 
@@ -202,10 +203,68 @@ class EnhancedSharePointManager:
             self.logger.error(f"An unexpected error occurred during standardized download: {e}", exc_info=True)
             return None
 
+    def download_file_content_as_bytes(self, sharepoint_url: str) -> Optional[bytes]:
+        """
+        Standardized download method for binary files (e.g., Excel).
+        It ensures the Drive ID is available and uses it to construct a reliable Graph API call,
+        returning raw bytes.
+        """
+        self.logger.info(f"Executing standardized binary download for: {sharepoint_url}")
+
+        if not self._get_sharepoint_drive_id():
+            self.logger.error("Binary download failed: Could not retrieve SharePoint Drive ID.")
+            return None
+
+        item_path = self._get_item_path_from_sharepoint_url(sharepoint_url)
+        if not item_path:
+            self.logger.error(f"Binary download failed: Could not parse item path from URL: {sharepoint_url}")
+            return None
+
+        item_path_encoded = urllib.parse.quote(item_path.strip('/'))
+        graph_url = f"https://graph.microsoft.com/v1.0/drives/{self.drive_id}/root:/{item_path_encoded}:/content"
+
+        access_token = getattr(self.original_manager, 'access_token', None)
+        if not access_token:
+            self.logger.error("Binary download failed: Access token is missing.")
+            # Consider raising SharePointAuthenticationError or returning None
+            return None
+
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/octet-stream', # Standard for binary files
+            'User-Agent': 'BRIDeal-GraphAPI-Binary/1.3'
+        }
+        self.logger.debug(f"Making authenticated Graph API request for binary file to: {graph_url}")
+
+        try:
+            response = requests.get(graph_url, headers=headers, timeout=30) # Increased timeout for potentially larger files
+            self.logger.debug(f"Binary response status: {response.status_code}")
+            response.raise_for_status()
+            content_bytes = response.content
+            if content_bytes:
+                self.logger.info(f"Standardized binary download successful: {len(content_bytes)} bytes.")
+                return content_bytes
+            else:
+                self.logger.warning("Standardized binary download returned empty content.")
+                return None
+        except requests.exceptions.HTTPError as e:
+            self.logger.error(f"HTTP Error {e.response.status_code} for binary URL: {graph_url}. Response: {e.response.text}")
+            # Consider raising SharePointAuthenticationError or specific error
+            return None # Or raise
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request exception for binary URL {graph_url}: {e}", exc_info=True)
+            return None # Or raise
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during standardized binary download: {e}", exc_info=True)
+            return None
+
+
     def __getattr__(self, name):
         """Delegate other attribute access to the original manager."""
         if name == 'download_file_content':
             return self.download_file_content
+        if name == 'download_file_content_as_bytes':
+            return self.download_file_content_as_bytes
         if self.original_manager:
             return getattr(self.original_manager, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}' and no original_manager to delegate to.")
@@ -247,7 +306,8 @@ class DealFormView(QWidget):
             'customers': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/customers.csv',
             'salesmen': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/salesmen.csv',
             'products': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/products.csv',
-            'parts': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/parts.csv'
+            'parts': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/parts.csv',
+            'ongoing_ams_excel': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20Output/ongoingams.xlsx' # Added for Excel import
         }
 
         self.customers_data = {}
@@ -786,6 +846,9 @@ class DealFormView(QWidget):
 
         # Add draft buttons to the self.draft_actions_layout (before the stretch item)
         # Insert order is reversed to get "Save" then "Load"
+        self.import_excel_btn = QPushButton("Import from Excel")
+        self.import_excel_btn.clicked.connect(self.import_from_excel) # Connection will be added later
+        self.draft_actions_layout.insertWidget(0, self.import_excel_btn)
         self.draft_actions_layout.insertWidget(0, self.load_draft_btn)
         self.draft_actions_layout.insertWidget(0, self.save_draft_btn)
         # self.draft_actions_layout.addStretch(1) # This was added when layout was created, to push to right.
@@ -797,6 +860,7 @@ class DealFormView(QWidget):
                                                  # Clear layout: while self.draft_actions_layout.count(): self.draft_actions_layout.takeAt(0).widget()
                                                  # Then: self.draft_actions_layout.addWidget(self.save_draft_btn)
                                                  #       self.draft_actions_layout.addWidget(self.load_draft_btn)
+                                                 #       self.draft_actions_layout.addWidget(self.import_excel_btn)
                                                  #       self.draft_actions_layout.addStretch(1)
 
         # Original main_actions_layout no longer contains these buttons
@@ -1676,6 +1740,217 @@ class DealFormView(QWidget):
         self.last_charge_to = "";
         if hasattr(self, 'part_charge_to'): self.part_charge_to.clear()
         self.logger.info("Deal form has been reset internally.")
+
+    def import_from_excel(self):
+        self.logger.info("Attempting to import from SharePoint Excel (ongoingams.xlsx)...")
+        self._show_status_message("Downloading Excel file from SharePoint...", 3000)
+
+        if not self.sharepoint_manager_enhanced:
+            self.logger.error("SharePoint manager (enhanced) is not available for Excel import.")
+            QMessageBox.critical(self, "Import Error", "SharePoint manager is not initialized. Cannot import Excel file.")
+            self._show_status_message("Error: SharePoint manager unavailable.", 5000)
+            return
+
+        excel_url = self.sharepoint_direct_csv_urls.get('ongoing_ams_excel')
+        if not excel_url:
+            self.logger.error("SharePoint URL for 'ongoing_ams_excel' not configured.")
+            QMessageBox.critical(self, "Import Error", "The SharePoint URL for the deals Excel file is not configured.")
+            self._show_status_message("Error: Excel URL not configured.", 5000)
+            return
+
+        try:
+            excel_bytes = self.sharepoint_manager_enhanced.download_file_content_as_bytes(excel_url)
+
+            if not excel_bytes:
+                self.logger.error("Failed to download Excel file from SharePoint or file is empty.")
+                QMessageBox.warning(self, "Import Warning", "Could not download the Excel file from SharePoint, or the file is empty.")
+                self._show_status_message("Failed to download Excel from SharePoint.", 4000)
+                return
+
+            self.logger.info(f"Successfully downloaded {len(excel_bytes)} bytes from SharePoint for Excel import.")
+            self._show_status_message("Excel file downloaded. Processing...", 2000)
+
+            # Load bytes into pandas DataFrame
+            df = pd.read_excel(io.BytesIO(excel_bytes), sheet_name='App')
+            self.logger.info(f"Successfully parsed {len(df)} rows from Excel sheet 'App'.")
+
+            if df.empty:
+                self.logger.warning("Excel sheet 'App' is empty.")
+                QMessageBox.information(self, "Import Info", "The 'App' sheet in the selected Excel file is empty.")
+                self._show_status_message("Excel sheet empty.", 3000)
+                return
+
+            # Ensure required columns exist
+            required_cols = ['CustomerName', 'Timestamp', 'Row ID']
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            if missing_cols:
+                self.logger.error(f"Excel sheet 'App' is missing required columns: {', '.join(missing_cols)}")
+                QMessageBox.critical(self, "Import Error", f"Excel sheet 'App' is missing required columns: {', '.join(missing_cols)}")
+                self._show_status_message(f"Excel missing columns: {', '.join(missing_cols)}", 5000)
+                return
+
+            # Convert Timestamp to datetime objects if not already, handling potential errors
+            try:
+                df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+                df['TimestampDate'] = df['Timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S') # For display
+            except Exception as e:
+                self.logger.error(f"Could not parse 'Timestamp' column: {e}")
+                QMessageBox.critical(self, "Import Error", "Could not parse the 'Timestamp' column in the Excel file. Please ensure it's a valid date/time format.")
+                self._show_status_message("Error parsing Timestamp.", 5000)
+                return
+
+            # Identify unique deals: Use a base part of Row ID (e.g., UUID part) or CustomerName + Timestamp
+            # For simplicity, we'll group by CustomerName and the full Timestamp string for now.
+            # A more robust way might involve parsing the Row ID if it has a common prefix for items of the same deal.
+            # Example: 'deal_uuid_part-item_1', 'deal_uuid_part-item_2'
+            # For now, let's assume Row ID's prefix before '-' is the deal identifier.
+            # If no '-', use the whole Row ID.
+            df['DealIdentifier'] = df['Row ID'].astype(str).apply(lambda x: x.split('-')[0])
+
+            unique_deals_df = df.drop_duplicates(subset=['DealIdentifier'])
+
+            deal_choices = [
+                f"{row['CustomerName']} ({row['TimestampDate']}, ID: {row['DealIdentifier']})"
+                for index, row in unique_deals_df.iterrows()
+            ]
+
+            if not deal_choices:
+                self.logger.warning("No unique deals found in the Excel file based on 'DealIdentifier'.")
+                QMessageBox.information(self, "Import Info", "No deals could be identified in the Excel file.")
+                self._show_status_message("No deals found in Excel.", 4000)
+                return
+
+            selected_deal_str = None
+            if len(deal_choices) == 1:
+                selected_deal_str = deal_choices[0]
+                self.logger.info(f"Only one deal found: {selected_deal_str}. Auto-selecting.")
+            else:
+                selected_deal_str, ok = QInputDialog.getItem(
+                    self,
+                    "Select Deal to Import",
+                    "Choose a deal:",
+                    deal_choices,
+                    0,
+                    False
+                )
+                if not ok or not selected_deal_str:
+                    self.logger.info("Deal selection cancelled by user.")
+                    self._show_status_message("Deal import cancelled.", 3000)
+                    return
+
+            self.logger.info(f"User selected deal: {selected_deal_str}")
+
+            # Extract the DealIdentifier from the selected string
+            # Format: "CustomerName (TimestampDate, ID: DealIdentifier)"
+            match = re.search(r"ID:\s*(.+)\)$", selected_deal_str)
+            if not match:
+                self.logger.error(f"Could not parse DealIdentifier from selected string: {selected_deal_str}")
+                QMessageBox.critical(self, "Import Error", "Could not identify the selected deal. Please try again.")
+                self._show_status_message("Error identifying selected deal.", 5000)
+                return
+
+            selected_deal_identifier = match.group(1)
+
+            # Get all rows for the selected deal
+            deal_data_df = df[df['DealIdentifier'] == selected_deal_identifier].copy() # Use .copy() to avoid SettingWithCopyWarning
+
+            if deal_data_df.empty:
+                self.logger.error(f"No data found for selected deal identifier: {selected_deal_identifier}")
+                QMessageBox.critical(self, "Import Error", "Could not retrieve data for the selected deal.")
+                self._show_status_message("Error retrieving deal data.", 5000)
+                return
+
+            self._process_excel_data(deal_data_df) # This method will be created in the next step
+
+        except FileNotFoundError:
+            self.logger.error(f"Excel file not found: {file_name}", exc_info=True)
+            QMessageBox.critical(self, "Import Error", f"The selected file could not be found:\n{file_name}")
+            self._show_status_message("Error: File not found.", 5000)
+        except pd.errors.EmptyDataError:
+            self.logger.error(f"Excel file or 'App' sheet is empty: {file_name}", exc_info=True)
+            QMessageBox.critical(self, "Import Error", f"The Excel file or the 'App' sheet is empty.")
+            self._show_status_message("Error: Excel file or sheet empty.", 5000)
+        except Exception as e:
+            self.logger.error(f"Error importing or processing Excel file: {e}", exc_info=True)
+            QMessageBox.critical(self, "Import Error", f"Could not process Excel file: {e}")
+            self._show_status_message(f"Error importing Excel: {e}", 5000)
+
+    def _process_excel_data(self, deal_data_df: pd.DataFrame):
+        if deal_data_df.empty:
+            self.logger.warning("Received empty DataFrame for processing.")
+            self._show_status_message("No data to process for the selected deal.", 3000)
+            return
+
+        self.logger.info(f"Processing {len(deal_data_df)} rows for the selected deal.")
+        self._show_status_message("Populating form with imported Excel data...", 2000)
+
+        # Reset form before populating
+        self.reset_form_no_confirm()
+
+        try:
+            # Common data (usually from the first row, assuming it's consistent across rows of the same deal)
+            first_row = deal_data_df.iloc[0]
+
+            customer_name = str(first_row.get('CustomerName', '')).strip()
+            salesperson = str(first_row.get('Salesperson', '')).strip()
+            payment_status_str = str(first_row.get('Payment', 'NO')).strip().upper()
+
+            self.customer_name.setText(customer_name)
+            self.salesperson.setText(salesperson)
+            self.paid_checkbox.setChecked(payment_status_str == 'YES')
+
+            # Populate Equipment and Trades lists
+            for index, row in deal_data_df.iterrows():
+                # Equipment
+                equip_name = str(row.get('Equipment', '')).strip()
+                if equip_name:
+                    equip_stk = str(row.get('Stock Number', '')).strip()
+                    # Amount might have $ and commas, clean it
+                    equip_price_str = str(row.get('Amount', '0')).strip().replace('$', '').replace(',', '')
+                    try:
+                        equip_price_val = float(equip_price_str) if equip_price_str else 0.0
+                        equip_price_display = f"${equip_price_val:,.2f}"
+                    except ValueError:
+                        equip_price_display = "$0.00"
+                        self.logger.warning(f"Could not parse equipment price: {row.get('Amount')}")
+
+                    # Format: '"Name" STK#StockNumber $Price' (Code and Order# not in Excel)
+                    item_text = f'"{equip_name}" STK#{equip_stk} {equip_price_display}'
+                    QListWidgetItem(item_text, self.equipment_list)
+                    self.logger.debug(f"Added equipment: {item_text}")
+
+                # Trades
+                trade_name = str(row.get('Trade', '')).strip()
+                if trade_name:
+                    trade_stk = str(row.get('Trade STK#', '')).strip() # Note: Header from user was " Trade STK# "
+                    # Amount2 might have $ and commas
+                    trade_price_str = str(row.get('Amount2', '0')).strip().replace('$', '').replace(',', '')
+                    try:
+                        trade_price_val = float(trade_price_str) if trade_price_str else 0.0
+                        trade_price_display = f"${trade_price_val:,.2f}"
+                    except ValueError:
+                        trade_price_display = "$0.00"
+                        self.logger.warning(f"Could not parse trade price: {row.get('Amount2')}")
+
+                    stock_display = f" STK#{trade_stk}" if trade_stk else ""
+                    item_text = f'"{trade_name}"{stock_display} {trade_price_display}'
+                    QListWidgetItem(item_text, self.trade_list)
+                    self.logger.debug(f"Added trade: {item_text}")
+
+            # Parts are not in the 'ongoingams.xlsx' structure provided.
+            # Work Order details and Notes are also not present.
+
+            self.update_charge_to_default() # Update WO charge to if applicable
+            self.on_customer_field_changed() # Trigger updates based on customer name
+
+            self._show_status_message("Successfully imported deal data from Excel.", 5000)
+            self.logger.info("Deal form populated from Excel data.")
+
+        except Exception as e:
+            self.logger.error(f"Error populating form from Excel data: {e}", exc_info=True)
+            QMessageBox.critical(self, "Import Error", f"An error occurred while populating the form: {e}")
+            self._show_status_message(f"Error populating form: {e}", 5000)
+
 
     def reset_form(self):
         reply = QMessageBox.question(self, 'Confirm Reset', "Reset form? All unsaved data will be lost.", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
