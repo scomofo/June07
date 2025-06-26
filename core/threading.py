@@ -94,64 +94,46 @@ class AsyncWorker(QThread):
         super().__init__()
         self.async_fn = async_fn
         self.args = args
-        self.kwargs = kwargs
+        self.kwargs = {k: v for k, v in kwargs.items() if k not in ['on_result', 'on_error', 'callback']}
         self.is_cancelled = False
         self._loop = None
         
     def run(self):
-        # Try to get a more descriptive name for the worker, fallback to objectName or id
-        worker_name_for_log = self.objectName() if self.objectName() else f"UnnamedAsyncWorker-{id(self)}"
+        """Run the async function in a new event loop"""
         try:
-            # Check if an object name was set, perhaps from the task_name
-            # This might require passing task_name to AsyncWorker's __init__ and setting it.
-            # For now, let's use a simpler identifier if objectName() is not set by default for QThread.
-            # Example: worker_name_for_log = f"AsyncWorker(fn={self.async_fn.__name__})-{self.thread().currentThreadId()}"
-            # For simplicity, we'll stick to objectName or a generic label for now if objectName is not typically set.
-            # If self.objectName() is consistently empty, a more robust naming might be needed later.
-            log_prefix = f"AsyncWorker ({worker_name_for_log})" # Use a consistent prefix
-
-            logger.debug(f"{log_prefix}: run() started.")
-            self._loop = None # Ensure _loop is initialized for the finally block
-
-            logger.debug(f"{log_prefix}: Creating new event loop...")
+            # Create new event loop for this thread
             self._loop = asyncio.new_event_loop()
-            logger.debug(f"{log_prefix}: New event loop created: {self._loop}")
-
-            logger.debug(f"{log_prefix}: Setting event loop...")
             asyncio.set_event_loop(self._loop)
-            logger.debug(f"{log_prefix}: Event loop set.")
             
-            target_fn_name = getattr(self.async_fn, '__name__', str(self.async_fn))
-            logger.debug(f"{log_prefix}: Calling run_until_complete for {target_fn_name}...")
+            # Run the async function
             result = self._loop.run_until_complete(
                 self.async_fn(*self.args, **self.kwargs)
             )
-            logger.debug(f"{log_prefix}: run_until_complete finished for {target_fn_name}. Result type: {type(result)}")
             
             if not self.is_cancelled:
-                logger.debug(f"{log_prefix}: Emitting result_ready signal.")
                 self.result_ready.emit(result)
-                logger.debug(f"{log_prefix}: result_ready signal emitted.")
-            else:
-                logger.debug(f"{log_prefix}: Task was cancelled, not emitting result_ready.")
                 
         except Exception as e:
-            # Ensure logger is defined and accessible here
-            # Assuming 'logger' is module-level logger from 'logging.getLogger(__name__)'
-            logger.error(f"{log_prefix}: Error in run() - {type(e).__name__}: {e}", exc_info=True)
-            if not self.is_cancelled:
-                logger.debug(f"{log_prefix}: Emitting error_occurred signal.")
-                self.error_occurred.emit(e)
-                logger.debug(f"{log_prefix}: error_occurred signal emitted.")
-            else:
-                logger.debug(f"{log_prefix}: Task was cancelled, not emitting error_occurred for this exception: {e}")
+            logger.error(f"AsyncWorker error: {e}", exc_info=True)
+            self.error_occurred.emit(e)
         finally:
-            logger.debug(f"{log_prefix}: run() finally block executing.")
+            # QThread.finished is emitted automatically by Qt after run() returns.
             if self._loop:
-                logger.debug(f"{log_prefix}: Closing event loop {self._loop}.")
-                self._loop.close()
-                logger.debug(f"{log_prefix}: Event loop closed.")
-            logger.debug(f"{log_prefix}: run() finished.")
+                try:
+                    logger.debug(f"AsyncWorker: Preparing to stop/close loop for {getattr(self.async_fn, '__name__', 'unknown')}")
+                    if self._loop.is_running():
+                        self._loop.call_soon_threadsafe(self._loop.stop)
+                        self._loop.run_forever()
+                        logger.debug(f"AsyncWorker: Loop stopped for {getattr(self.async_fn, '__name__', 'unknown')}")
+                    else:
+                        logger.debug(f"AsyncWorker: Loop for {getattr(self.async_fn, '__name__', 'unknown')} was already stopped.")
+                except Exception as el_run_err:
+                    logger.error(f"AsyncWorker: Error during loop final processing (run_forever/stop): {el_run_err}", exc_info=True)
+                finally: # Ensure loop close is attempted
+                    logger.debug(f"AsyncWorker: Closing loop for {getattr(self.async_fn, '__name__', 'unknown')}")
+                    self._loop.close()
+                    self._loop = None
+                    logger.debug(f"AsyncWorker: Loop closed for {getattr(self.async_fn, '__name__', 'unknown')}")
     
     def cancel(self):
         """Cancel the async worker"""
