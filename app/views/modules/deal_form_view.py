@@ -258,6 +258,55 @@ class EnhancedSharePointManager:
             self.logger.error(f"An unexpected error occurred during standardized binary download: {e}", exc_info=True)
             return None
 
+    def download_file_by_item_id_as_bytes(self, item_id: str, drive_id: Optional[str] = None) -> Optional[bytes]:
+        """
+        Downloads a file by its Item ID from a specified or default Drive, returning raw bytes.
+        """
+        self.logger.info(f"Executing download by Item ID: {item_id}, specified Drive ID: {drive_id}")
+
+        actual_drive_id = drive_id
+        if not actual_drive_id:
+            actual_drive_id = self._get_sharepoint_drive_id() # Get default drive_id if not specified
+            if not actual_drive_id:
+                self.logger.error("Download by Item ID failed: Could not retrieve default SharePoint Drive ID.")
+                return None
+
+        self.logger.info(f"Using Drive ID: {actual_drive_id} for Item ID: {item_id}")
+
+        graph_url = f"https://graph.microsoft.com/v1.0/drives/{actual_drive_id}/items/{item_id}/content"
+
+        access_token = getattr(self.original_manager, 'access_token', None)
+        if not access_token:
+            self.logger.error("Download by Item ID failed: Access token is missing.")
+            return None
+
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/octet-stream',
+            'User-Agent': 'BRIDeal-GraphAPI-ItemID/1.0'
+        }
+        self.logger.debug(f"Making authenticated Graph API request for Item ID to: {graph_url}")
+
+        try:
+            response = requests.get(graph_url, headers=headers, timeout=30)
+            self.logger.debug(f"Item ID download response status: {response.status_code}")
+            response.raise_for_status()
+            content_bytes = response.content
+            if content_bytes:
+                self.logger.info(f"Download by Item ID successful: {len(content_bytes)} bytes for Item ID {item_id}.")
+                return content_bytes
+            else:
+                self.logger.warning(f"Download by Item ID returned empty content for Item ID {item_id}.")
+                return None
+        except requests.exceptions.HTTPError as e:
+            self.logger.error(f"HTTP Error {e.response.status_code} for Item ID {item_id} URL: {graph_url}. Response: {e.response.text}")
+            return None
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request exception for Item ID {item_id} URL {graph_url}: {e}", exc_info=True)
+            return None
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during download by Item ID {item_id}: {e}", exc_info=True)
+            return None
 
     def __getattr__(self, name):
         """Delegate other attribute access to the original manager."""
@@ -265,6 +314,8 @@ class EnhancedSharePointManager:
             return self.download_file_content
         if name == 'download_file_content_as_bytes':
             return self.download_file_content_as_bytes
+        if name == 'download_file_by_item_id_as_bytes':
+            return self.download_file_by_item_id_as_bytes
         if self.original_manager:
             return getattr(self.original_manager, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}' and no original_manager to delegate to.")
@@ -308,6 +359,16 @@ class DealFormView(QWidget):
             'products': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/products.csv',
             'parts': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/parts.csv',
             'ongoing_ams_excel': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/Sales/OngoingAMS.xlsx' # Corrected path for Excel import
+        }
+
+        # Item IDs for specific files, if needed for direct access
+        self.sharepoint_item_ids = {
+            'ongoing_ams_excel': '01QI6ME2KS4WNUBAZQQNF2FMI5KSNSSOIY'
+        }
+        # Drive ID where 'ongoing_ams_excel' item is located, if different from default site drive.
+        # From user provided SHAREPOINT_DRIVE_ID for OngoingAMS.xlsx. To be used if default drive fails.
+        self.specific_drive_ids = {
+            'ongoing_ams_excel': 'b!VmM0NTg0ZmMtNWJkYi04ZDQzLWNhYjQtMTI0NzRhZmI5MGU2'
         }
 
         self.customers_data = {}
@@ -1751,23 +1812,35 @@ class DealFormView(QWidget):
             self._show_status_message("Error: SharePoint manager unavailable.", 5000)
             return
 
-        excel_url = self.sharepoint_direct_csv_urls.get('ongoing_ams_excel')
-        if not excel_url:
-            self.logger.error("SharePoint URL for 'ongoing_ams_excel' not configured.")
-            QMessageBox.critical(self, "Import Error", "The SharePoint URL for the deals Excel file is not configured.")
-            self._show_status_message("Error: Excel URL not configured.", 5000)
+        excel_item_id = self.sharepoint_item_ids.get('ongoing_ams_excel')
+        excel_drive_id = self.specific_drive_ids.get('ongoing_ams_excel') # This can be None
+
+        if not excel_item_id:
+            self.logger.error("Item ID for 'ongoing_ams_excel' not configured.")
+            QMessageBox.critical(self, "Import Error", "The Item ID for the deals Excel file is not configured.")
+            self._show_status_message("Error: Excel Item ID not configured.", 5000)
             return
 
+        # Log which drive ID will be attempted.
+        # The download method will use default if excel_drive_id is None.
+        if excel_drive_id:
+            self.logger.info(f"Attempting download using Item ID '{excel_item_id}' and specific Drive ID '{excel_drive_id}'.")
+        else:
+            self.logger.info(f"Attempting download using Item ID '{excel_item_id}' and default site Drive ID.")
+
         try:
-            excel_bytes = self.sharepoint_manager_enhanced.download_file_content_as_bytes(excel_url)
+            excel_bytes = self.sharepoint_manager_enhanced.download_file_by_item_id_as_bytes(
+                item_id=excel_item_id,
+                drive_id=excel_drive_id
+            )
 
             if not excel_bytes:
-                self.logger.error("Failed to download Excel file from SharePoint or file is empty.")
-                QMessageBox.warning(self, "Import Warning", "Could not download the Excel file from SharePoint, or the file is empty.")
+                self.logger.error(f"Failed to download Excel file using Item ID '{excel_item_id}' (Drive ID tried: {excel_drive_id or 'default'}). File might be empty or access issue.")
+                QMessageBox.warning(self, "Import Warning", "Could not download the Excel file from SharePoint using Item ID. The file may not exist, be empty, or there might be an access issue.")
                 self._show_status_message("Failed to download Excel from SharePoint.", 4000)
                 return
 
-            self.logger.info(f"Successfully downloaded {len(excel_bytes)} bytes from SharePoint for Excel import.")
+            self.logger.info(f"Successfully downloaded {len(excel_bytes)} bytes from SharePoint using Item ID '{excel_item_id}'.")
             self._show_status_message("Excel file downloaded. Processing...", 2000)
 
             # Load bytes into pandas DataFrame
