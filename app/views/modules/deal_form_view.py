@@ -1829,9 +1829,10 @@ class DealFormView(QWidget):
             self.logger.info(f"Attempting download using Item ID '{excel_item_id}' and default site Drive ID.")
 
         try:
+            self.logger.info("TEMPORARY TEST: Forcing use of default Drive ID for Item ID download.")
             excel_bytes = self.sharepoint_manager_enhanced.download_file_by_item_id_as_bytes(
                 item_id=excel_item_id,
-                drive_id=excel_drive_id
+                drive_id=None # Force use of default drive ID fetched by the manager
             )
 
             if not excel_bytes:
