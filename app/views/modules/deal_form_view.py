@@ -357,8 +357,8 @@ class DealFormView(QWidget):
             'customers': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/customers.csv',
             'salesmen': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/salesmen.csv',
             'products': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/products.csv',
-            'parts': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/parts.csv',
-            'ongoing_ams_excel': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/Sales/OngoingAMS.xlsx' # Corrected path for Excel import
+            'parts': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/parts.csv'
+            # 'ongoing_ams_excel': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/Sales/OngoingAMS.xlsx' # No longer used for ItemID import
         }
 
         # Item IDs for specific files, if needed for direct access
@@ -366,9 +366,9 @@ class DealFormView(QWidget):
             'ongoing_ams_excel': '01QI6ME2KS4WNUBAZQQNF2FMI5KSNSSOIY'
         }
         # Drive ID where 'ongoing_ams_excel' item is located, if different from default site drive.
-        # From user provided SHAREPOINT_DRIVE_ID for OngoingAMS.xlsx. To be used if default drive fails.
+        # This is no longer needed as the default site drive ID works with the Item ID.
         self.specific_drive_ids = {
-            'ongoing_ams_excel': 'b!VmM0NTg0ZmMtNWJkYi04ZDQzLWNhYjQtMTI0NzRhZmI5MGU2'
+            # 'ongoing_ams_excel': 'b!VmM0NTg0ZmMtNWJkYi04ZDQzLWNhYjQtMTI0NzRhZmI5MGU2'
         }
 
         self.customers_data = {}
@@ -1829,10 +1829,11 @@ class DealFormView(QWidget):
             self.logger.info(f"Attempting download using Item ID '{excel_item_id}' and default site Drive ID.")
 
         try:
-            self.logger.info("TEMPORARY TEST: Forcing use of default Drive ID for Item ID download.")
+            # excel_drive_id will be None if not found in self.specific_drive_ids,
+            # causing download_file_by_item_id_as_bytes to use the default site drive ID.
             excel_bytes = self.sharepoint_manager_enhanced.download_file_by_item_id_as_bytes(
                 item_id=excel_item_id,
-                drive_id=None # Force use of default drive ID fetched by the manager
+                drive_id=excel_drive_id
             )
 
             if not excel_bytes:
