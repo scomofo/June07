@@ -307,7 +307,7 @@ class DealFormView(QWidget):
             'salesmen': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/salesmen.csv',
             'products': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/products.csv',
             'parts': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20resources/parts.csv',
-            'ongoing_ams_excel': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/App%20Output/ongoingams.xlsx' # Added for Excel import
+            'ongoing_ams_excel': 'https://briltd.sharepoint.com/sites/ISGandAMS/Shared%20Documents/Sales/OngoingAMS.xlsx' # Corrected path for Excel import
         }
 
         self.customers_data = {}
